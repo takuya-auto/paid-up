@@ -40,7 +40,7 @@ function log(stage, data) {
   appendFileSync(new URL('../media/sandbox-check.log', import.meta.url), `${new Date().toISOString()} ${stage} ${JSON.stringify({ data, calls: pp.calls })}\n`);
 }
 
-const show = (r) => ({ id: r.id, number: r.number, status: r.status, total: r.total, paid: r.paid, due: r.due, due_date: r.due_date, first_sent: r.first_sent, last_sent: r.last_sent, payer_url: r.payer_url ? 'present' : 'missing', payment_ids: r._payment_ids });
+const show = (r) => ({ id: r.id, number: r.number, status: r.status, total: r.total, paid: r.paid, due: r.due, due_date: r.due_date, first_sent: r.first_sent, last_sent: r.last_sent, payer_url: r.payer_url || 'missing', payment_ids: r._payment_ids });
 
 const [stage, ...args] = process.argv.slice(2);
 try {
