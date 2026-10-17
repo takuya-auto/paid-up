@@ -44,6 +44,7 @@
             <h3>Draft invoice</h3>
             <span class="badge" id="via"></span>
           </div>
+          <p id="reader-warn" class="err" hidden></p>
           <div class="grid2">
             <label>Client name<input id="d-name"></label>
             <label>Business<input id="d-business"></label>
@@ -81,7 +82,7 @@
         <div id="unmatched" class="unmatched" hidden>
           <h3>Money that arrived but matches no open invoice</h3>
           <ul id="unmatched-list"></ul>
-          <p class="hint">Paid-Up never records these on its own. Check who sent them first.</p>
+          <p class="hint">Listed for you to review. A payment is recorded only when you use <em>Record payment</em> on an invoice.</p>
         </div>
       </section>
 

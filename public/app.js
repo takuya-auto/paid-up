@@ -364,7 +364,11 @@ $('#read').addEventListener('click', async () => {
     itemsGrid.setGridOption('rowData', d.items.map((it) => ({ ...it })));
     $('#via').textContent = out.via === 'llm' ? 'read by AI' : 'read by rules (AI off)';
     $('#via').className = `badge ${out.via === 'llm' ? '' : 'warn'}`;
-    $('#checks').innerHTML = out.checks.map((c) => `<li class="${c.ok ? '' : 'no'}">${c.ok ? '✓' : '⚠'} <b>${esc(c.field)}</b> ${esc(c.value)} — ${esc(c.reason)}</li>`).join('');
+    // A rule-based read (AI unavailable) comes with a field:'reader' check naming what the rules could not apply.
+    const reader = out.checks.find((c) => c.field === 'reader');
+    $('#reader-warn').hidden = !reader;
+    $('#reader-warn').textContent = reader ? reader.reason : '';
+    $('#checks').innerHTML = out.checks.filter((c) => c.field !== 'reader').map((c) => `<li class="${c.ok ? '' : 'no'}">${c.ok ? '✓' : '⚠'} <b>${esc(c.field)}</b> ${esc(c.value)} — ${esc(c.reason)}</li>`).join('');
     $('#draft').hidden = false;
     draftTotal();
     const unsure = out.checks.filter((c) => !c.ok).length;
