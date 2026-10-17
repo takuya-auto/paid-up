@@ -1,6 +1,6 @@
 // Cloudflare Worker entry: serves the static UI (ASSETS binding) and /api/*.
-// Every endpoint that changes something at PayPal is a separate POST the user triggers;
-// the agent proposes, the human confirms.
+// Endpoints that change something at PayPal are separate POSTs that the UI calls on a user's
+// click; drafting, reminder wording and payment matching only propose.
 
 import { createPayPal } from './paypal/client.js';
 import { toPayPalInvoice, summarize, validateDraft, PAYMENT_METHODS, toAmount } from './paypal/build.js';

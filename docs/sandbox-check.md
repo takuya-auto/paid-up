@@ -16,3 +16,14 @@ has been run against the sandbox with real credentials (team rule: verify real A
 | GET /v1/reporting/transactions | no | | how long until a sandbox payment appears; invoice_id / paypal_invoice_id on invoice payments; direct transfer from buyer shows payer_info |
 
 Decision rule (plan, 2026-10-22): if create -> send -> pay -> status change does not work in the sandbox, switch to the Orders v2 plan.
+
+## How to run (about 15 minutes once credentials exist)
+1. Put `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` (sandbox app) into `.dev.vars` (git-ignored).
+2. `node scripts/sandbox-check.mjs create <sandbox-buyer-email>` - creates and sends invoice A (due in 14 days) and B (3 days overdue). Note the two ids.
+3. Log in to the sandbox as the buyer (sandbox.paypal.com, the fictional test account) and pay invoice A.
+4. `node scripts/sandbox-check.mjs status <A> <B>` - A should be PAID; check whether payment_ids hold the transaction id.
+5. `node scripts/sandbox-check.mjs remind <B>` - last_sent should move.
+6. `node scripts/sandbox-check.mjs record <B> 40` - B should become PARTIALLY_PAID with due 60.00.
+7. As the buyer, send money directly (not through an invoice) to the sandbox merchant, then run
+   `node scripts/sandbox-check.mjs transactions 7` - see when it appears and whether invoice payments carry invoice_ref.
+8. Tick the table above. Debug ids stay in media/sandbox-check.log (git-ignored).

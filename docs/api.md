@@ -5,7 +5,8 @@ the UI should send the user's local date. Errors: `{ "error": "...", "status": 4
 Endpoints that call PayPal also return `paypal_mode` (`"mock"` or `"live"`) and `paypal_calls`
 (`[{method, path, status, ms, debug_id}]`) so the UI can show what was sent to PayPal.
 
-Nothing is ever sent to the client or recorded at PayPal without an explicit POST from the user.
+By design, the calls that send something to a client or record something at PayPal are separate POST
+endpoints that the UI triggers from a user's click; reading, drafting and matching do not call those endpoints.
 
 ## GET /api/health
 `{ ok, paypal: {mode, environment}, llm: {mode, model, cap, usedToday, remaining, ...}, tones: {friendly|firm|final: {label, when}} }`
