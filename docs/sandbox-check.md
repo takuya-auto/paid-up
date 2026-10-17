@@ -10,10 +10,12 @@ has been run against the sandbox with real credentials (team rule: verify real A
 | GET /v2/invoicing/invoices/{id} | yes | 2026-10-17 | recipient_view_url present after send; invoice numbers 0001, 0002 auto-assigned |
 | GET /v2/invoicing/invoices?page_size=100&total_required=true | yes | 2026-10-17 | total_items and amount/due_amount/payments are returned, but line items are NOT -> the 'note mentions an invoiced item' matching reason needs a per-invoice GET (todo) |
 | POST /v2/invoicing/invoices/{id}/send | yes | 2026-10-17 | returns a link (href, rel, method); status becomes SENT |
-| Pay the invoice as the sandbox buyer | no | | status PAID; payments.transactions[].payment_id = transaction id? |
+| Pay the invoice as the sandbox buyer | not done | 2026-10-17 | decided not to run (no buyer login by the team or owner). Instead a full external payment was recorded on invoice A: 42 of 42 -> MARKED_AS_PAID, due 0.00 |
 | POST /v2/invoicing/invoices/{id}/remind | yes | 2026-10-17 | succeeds, but metadata.last_sent_time is NOT updated -> the app keeps its own reminder record (src/agent/history.js) |
 | POST /v2/invoicing/invoices/{id}/payments | yes | 2026-10-17 | 40 of 100 -> PARTIALLY_PAID, paid 40.00, due 60.00; PayPal assigns a payment id starting EXTR- |
-| GET /v1/reporting/transactions | **blocked** | 2026-10-17 | 403 NOT_AUTHORIZED: the sandbox app needs the Transaction Search feature enabled (app settings). Re-run after that |
+| GET /v1/reporting/transactions | yes (empty) | 2026-10-17 | first 403 NOT_AUTHORIZED; after enabling Transaction Search on the app and taking a new token: 200, total_items 0, last_refreshed_datetime present (data lags real time). No real sandbox payment was made, so matching is demonstrated with the mock's sample data and labelled as such |
+
+Result 2026-10-17: create -> send -> get/list -> remind -> record (partial and full) all work in the sandbox, so the Invoicing plan continues.
 
 Decision rule (plan, 2026-10-22): if create -> send -> pay -> status change does not work in the sandbox, switch to the Orders v2 plan.
 
