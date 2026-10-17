@@ -4,7 +4,7 @@
 
 import { createPayPal } from './paypal/client.js';
 import { normSession, resetMock } from './paypal/mock.js';
-import { toPayPalInvoice, summarize, validateDraft, PAYMENT_METHODS, toAmount } from './paypal/build.js';
+import { toPayPalInvoice, summarize, validateDraft, PAYMENT_METHODS, toAmount, OPEN_STATUSES } from './paypal/build.js';
 import { createLLM } from './llm/workersai.js';
 import { extractDraft } from './agent/extract.js';
 import { nextAction, draftReminder, TONES } from './agent/collect.js';
@@ -62,6 +62,15 @@ async function overview(pp, today, history) {
     txRefreshed = raw?.last_refreshed_datetime || null; // Transaction Search data lags behind real time
     txs = incoming(raw);
   } catch (e) { txError = e.message; }
+  // PayPal's list response has no line items (sandbox, 2026-10-17). Matching uses item names
+  // ("the payment note mentions an invoiced item"), so fetch them for open invoices when there
+  // is something to match. Bounded so one overview never makes more than 25 extra calls.
+  if (txs.length) {
+    const need = rows.filter((r) => OPEN_STATUSES.has(r.status) && !r.items.length).slice(0, 25);
+    await Promise.all(need.map(async (r) => {
+      try { r.items = summarize(await pp.getInvoice(r.id), today).items; } catch { /* keep matching on the other signals */ }
+    }));
+  }
   const { matches, unmatched } = reconcile(rows, txs);
   const byInvoice = new Map(matches.map((m) => [m.invoice_id, m]));
   for (const r of rows) {

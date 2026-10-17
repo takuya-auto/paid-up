@@ -265,3 +265,27 @@ test('sample sessions are isolated per browser and can be reset', async () => {
   assert.equal((await ov(A)).body.rows.find((r) => r.id === okaforA.id).next.action, 'record_payment');
   assert.equal((await call('POST', '/api/sample/reset', {})).status, 400); // only in sample mode
 });
+
+test('overview fetches line items for open invoices when the list omits them (as the sandbox does)', async () => {
+  const { _resetTokenCache } = await import('../src/paypal/client.js');
+  _resetTokenCache();
+  const realFetch = globalThis.fetch;
+  let gets = 0;
+  const inv = { id: 'INV2-A', status: 'SENT', detail: { currency_code: 'USD', invoice_number: '9', payment_term: { due_date: '2026-10-01' } }, primary_recipients: [{ billing_info: { business_name: 'Studio Vogel', email_address: 'lena@vogel.example.com' } }], amount: { currency_code: 'USD', value: '360.00' }, due_amount: { currency_code: 'USD', value: '360.00' } };
+  globalThis.fetch = async (u) => {
+    if (u.endsWith('/v1/oauth2/token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { status: 200 });
+    if (u.includes('/v2/invoicing/invoices?')) return new Response(JSON.stringify({ items: [inv] }), { status: 200 }); // no line items
+    if (u.includes('/v2/invoicing/invoices/INV2-A')) { gets++; return new Response(JSON.stringify({ ...inv, items: [{ name: 'Product photo retouching', quantity: '24', unit_amount: { currency_code: 'USD', value: '15.00' } }] }), { status: 200 }); }
+    if (u.includes('/v1/reporting/transactions')) return new Response(JSON.stringify({ last_refreshed_datetime: '2026-10-17T00:00:00Z', transaction_details: [{ transaction_info: { transaction_id: 'T9', transaction_status: 'S', transaction_amount: { currency_code: 'USD', value: '360.00' }, transaction_note: 'photo retouching' }, payer_info: { email_address: 'x@other.example.com', payer_name: { alternate_full_name: 'L. Vogel' } } }] }), { status: 200 });
+    return new Response('{}', { status: 200 });
+  };
+  try {
+    const res = await worker.fetch(new Request(`http://x/api/overview?today=${TODAY}`), { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 's' });
+    const body = await res.json();
+    assert.equal(gets, 1);
+    const row = body.rows[0];
+    assert.equal(row.next.action, 'record_payment');
+    assert.ok(row.match.reasons.some((r) => /note mentions/.test(r)), JSON.stringify(row.match.reasons));
+    assert.equal(body.transactions_refreshed_at, '2026-10-17T00:00:00Z');
+  } finally { globalThis.fetch = realFetch; }
+});
