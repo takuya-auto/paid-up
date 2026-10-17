@@ -289,3 +289,17 @@ test('overview fetches line items for open invoices when the list omits them (as
     assert.equal(body.transactions_refreshed_at, '2026-10-17T00:00:00Z');
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('rule reader on typical requests (used when the daily AI cap is reached)', () => {
+  const r1 = ruleExtract('Could you send the invoice for the logo package ($850) and the business card layout ($150)? Please make it out to Brightside Bakery, attention Maya Ortiz, maya@b.example.com. Net 15 is fine.', TODAY);
+  assert.deepEqual(r1.items.map((i) => [i.name, i.quantity, i.unit_amount]), [['logo package', 1, 850], ['business card layout', 1, 150]]);
+  assert.deepEqual([r1.recipient.name, r1.recipient.business, r1.due_date], ['Maya Ortiz', 'Brightside Bakery', '2026-11-16']);
+  const r3 = ruleExtract('For the product shoot on Oct 12: half-day session $600, plus 25 edited photos at $12 each. We already paid the $200 deposit by bank transfer, so please take that off. We need it paid by Nov 20.', TODAY);
+  assert.deepEqual(r3.items.map((i) => [i.quantity, i.unit_amount]), [[1, 600], [25, 12]]); // the deposit is not an item
+  assert.equal(r3.due_date, '2026-11-20');
+  const r7 = ruleExtract("The pitch deck redesign (12 slides at $40/slide) came out great. As agreed there's a $100 rush fee, and you offered 10% off the slides.", TODAY);
+  assert.deepEqual(r7.items.map((i) => [i.name, i.quantity, i.unit_amount]), [['pitch deck redesign', 12, 40], ['rush fee', 1, 100]]);
+  assert.equal(ruleExtract('hey! 20 hrs of site maintenance at $45/hr, due end of the month pls', TODAY).due_date, '2026-11-30');
+  assert.equal(ruleExtract('8 illustrations at EUR 180 each. Payment within 21 days.', TODAY).currency, 'EUR');
+  assert.equal(ruleExtract('8 illustrations at EUR 180 each. Payment within 21 days.', TODAY).due_date, '2026-11-22');
+});

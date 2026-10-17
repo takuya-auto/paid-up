@@ -67,36 +67,106 @@ export async function extractDraft(text, { llm, today }) {
   return { draft: clean(draft), checks, via, trace };
 }
 
-/** Deterministic reader used when the LLM is unavailable. */
+/** Deterministic reader used when the LLM is unavailable. Handles the common shapes
+ *  ("20 hrs at $45/hr", "25 photos at $12 each", "6 sessions x $35", "logo package ($850)"),
+ *  plain due dates ("Nov 20", "2026-11-20", "net 30", "within 21 days", "end of the month") and
+ *  "bill to / invoice to / attention" names. Anything it cannot apply (discounts, deposits) is
+ *  named in the review warning by extractDraft. */
 export function ruleExtract(text, today) {
   const email = (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || [''])[0];
   const currency = /€|\bEUR\b/i.test(text) ? 'EUR' : /£|\bGBP\b/i.test(text) ? 'GBP' : /¥|\bJPY\b|円/.test(text) ? 'JPY' : 'USD';
+  const MONEY = /(?:\$|€|£|¥|\b(?:USD|EUR|GBP|JPY)\s?)\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:USD|EUR|dollars|円)/gi;
+  const UNIT = '(?:hrs?|hours?|sessions?|slides?|photos?|pages?|words?|illustrations?|units?|items?|pcs|days?|posts?|videos?|lessons?|workshops?)';
   const items = [];
   const evidenceItems = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/(?:\$|€|£|¥|USD\s*|EUR\s*)\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:USD|EUR|dollars|円)/i);
-    if (!m) continue;
-    const amount = Number((m[1] || m[2]).replace(/,/g, ''));
-    if (!amount) continue;
-    const qty = Number((line.match(/(\d+)\s?(?:x|×|pcs|hours?|hrs?|pages?|units?)\b/i) || [])[1]) || 1;
-    const perUnit = /\b(?:each|per|\/\s?(?:hr|hour|page|unit))\b/i.test(line) || qty === 1 ? amount : amount / qty;
-    const name = line.replace(m[0], '').replace(/[-–:•*]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Services';
-    items.push({ name, quantity: qty, unit_amount: Number(perUnit.toFixed(2)) });
-    evidenceItems.push(line.trim());
+  // Clauses: sentences, then parts joined by "and the" / "plus" / ";" / ": ".
+  const clauses = text.split(/(?<=[.!?])\s+|\n+/).flatMap((s) => s.split(/;|:\s|\band the\b|\bplus\b|\)\s*and\b/i));
+  for (const raw of clauses) {
+    const clause = raw.trim();
+    if (!clause || /\b(already paid|deposit|paid the|refund)\b/i.test(clause)) continue; // money already settled: leave to the user
+    for (const m of clause.matchAll(MONEY)) {
+      const amount = Number((m[1] || m[2]).replace(/,/g, ''));
+      if (!amount) continue;
+      const before = clause.slice(0, m.index);
+      const after = clause.slice(m.index + m[0].length, m.index + m[0].length + 20);
+      if (/^\s*%|^\s*off\b/i.test(after) || /\b\d+\s?%\s*$/.test(before)) continue;
+      const q = before.match(new RegExp(`(\\d[\\d,]*)[-\\s]+(?:[a-z-]+\\s+){0,2}${UNIT}\\b[^$€£¥]{0,25}?(?:at|@|x|×|for)?\\s*$`, 'i'))
+        || before.match(/(\d[\d,]*)\s*(?:x|×)\s*$/i)
+        || before.match(new RegExp(`(\\d[\\d,]*)[-\\s]*${UNIT}\\b`, 'i'));
+      const qty = q ? Number(q[1].replace(/,/g, '')) : 1;
+      const perUnit = /^\s*(?:\/|each|per\b|a\s|an\s)/i.test(after) || /\b(?:at|x|×|@)\s*$/i.test(before);
+      const unit = qty > 1 && !perUnit ? amount / qty : amount;
+      let name = before
+        .replace(q ? q[0] : '', ' ')
+        .replace(/\(\s*$/, '')
+        .replace(/^.*?\b(?:invoice for|bill (?:us|me) for|for the|for my|for our|for|of)\s+/i, '')
+        .replace(/\b(?:at|x|×|@|is|was|of)\s*$/i, '')
+        .trim()
+        .replace(/^(?:the|a|an|one-time|same as usual)\s+/i, '')
+        .replace(/[—–(]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (/(?:^|\s)(?:a|an|the)$/i.test(name) || /\b(?:there's|there is|it's|it is)\b/i.test(name)) {
+        // "there's a $100 rush fee": the item is named after the amount
+        const named = after.match(/^\s*([a-z][a-z -]{2,40}?)(?=[,.;)]|\s+(?:and|for|since|because)\b|$)/i);
+        if (named) name = named[1].trim();
+      }
+      name = name.replace(/[\s,;:-]+$/, '');
+      if (!name || name.length < 3) name = q ? q[0].replace(/\d[\d,]*/, '').replace(/\b(?:at|x|×|@)\b/g, '').trim() : 'Services';
+      items.push({ name: name.slice(0, 120), quantity: qty, unit_amount: Number(unit.toFixed(2)) });
+      evidenceItems.push(clause);
+    }
   }
-  const iso = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
-  const greet = text.match(/^(?:hi|hello|dear)\s+([A-Z][a-z]+)/im);
-  const sign = text.match(/^(?:thanks|best|regards|cheers)[,!]?\s*\n\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/im);
   return {
-    recipient: { name: (sign && sign[1]) || '', business: '', email },
+    recipient: { name: findName(text), business: findBusiness(text), email },
     items,
     currency,
-    due_date: iso ? iso[1] : null,
+    due_date: findDue(text, today),
     note: 'Thank you for your business.',
-    evidence: { recipient: email || (sign && sign[1]) || null, items: evidenceItems, due_date: iso ? iso[1] : null },
-    _greeting: greet ? greet[1] : null,
-    _today: today,
+    evidence: { recipient: email || null, items: evidenceItems, due_date: findDueQuote(text) },
   };
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const addDays = (today, n) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+function findDueQuote(text) {
+  const m = text.match(/\b(?:due|by|paid by|before)\s+(?:on\s+)?((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}|20\d{2}-\d{2}-\d{2})|\bnet\s?(\d{1,3})\b|\b(?:within|in)\s+(\d{1,3})\s+days\b|\bend of (?:the )?month\b|\b(20\d{2}-\d{2}-\d{2})\b/i);
+  return m ? m[0] : null;
+}
+
+export function findDue(text, today) {
+  const q = findDueQuote(text);
+  if (!q || !today) return null;
+  const iso = q.match(/20\d{2}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const md = q.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})/i);
+  if (md) {
+    const [y] = today.split('-').map(Number);
+    let d = `${y}-${String(MONTHS.indexOf(md[1].toLowerCase()) + 1).padStart(2, '0')}-${md[2].padStart(2, '0')}`;
+    if (d < addDays(today, -60)) d = `${y + 1}${d.slice(4)}`; // "Jan 10" written in December
+    return d;
+  }
+  const net = q.match(/net\s?(\d{1,3})|(\d{1,3})\s+days/i);
+  if (net) return addDays(today, Number(net[1] || net[2]));
+  if (/end of/i.test(q)) {
+    const [y, mo] = today.split('-').map(Number);
+    return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function findBusiness(text) {
+  const NAME = "([A-Z][\\w&'.-]*(?:\\s+(?:&\\s+)?[A-Z][\\w&'.-]*){0,4})";
+  const m = text.match(new RegExp(`\\b(?:[Bb]ill|[Ii]nvoice|[Mm]ake it out)\\s+(?:it\\s+)?(?:to|out to)\\s+${NAME}`))
+    || text.match(new RegExp(`\\b(?:please bill|bill)\\s+${NAME}`))
+    || text.match(new RegExp(`\\bClient:\\s*${NAME}`));
+  return m ? m[1].replace(/\s+for$/, '').trim() : '';
+}
+
+function findName(text) {
+  const m = text.match(/\b(?:attention|attn\.?|contact|to me)[,:]?\s+(?:Dr\.?\s+)?([A-Z][a-z]+\s+[A-Z][a-z]+)/)
+    || text.match(/,\s*([A-Z][a-z]+\s+[A-Z][a-z]+),\s*[A-Z0-9._%+-]+@/i)
+    || text.match(/^(?:thanks|best|regards|cheers)[,!]?\s*\n\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/im);
+  return m ? m[1] : '';
 }
 
 /** Check every quoted piece of evidence against the source text. */
