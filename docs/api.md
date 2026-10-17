@@ -8,8 +8,17 @@ Endpoints that call PayPal also return `paypal_mode` (`"mock"` or `"live"`) and 
 By design, the calls that send something to a client or record something at PayPal are separate POST
 endpoints that the UI triggers from a user's click; reading, drafting and matching do not call those endpoints.
 
+## Sample data mode
+Add `?data=sample` to any endpoint (or send header `x-paid-up-data: sample`) to use the built-in mock with
+fictional invoices and payments, even when PayPal credentials are configured. Nothing in this mode reaches PayPal.
+
+## Public demo limits (live sandbox mode only)
+- Creating an invoice for an address not in `SEND_ALLOWED_EMAILS` -> `403` (message names the allowed sandbox buyer).
+  Send / remind / record on an invoice whose recipient is not allowed -> `403`.
+- More than `WRITE_DAILY_CAP` write actions in a UTC day -> `429`.
+
 ## GET /api/health
-`{ ok, paypal: {mode, environment}, llm: {mode, model, cap, usedToday, remaining, ...}, tones: {friendly|firm|final: {label, when}} }`
+`{ ok, paypal: {mode, environment, sample, allowed_recipients}, llm: {mode, model, cap, usedToday, remaining, ...}, tones: {friendly|firm|final: {label, when}} }`
 
 ## POST /api/draft — read a messy request (no PayPal call)
 Request: `{ "text": "email / chat / notes", "today": "2026-11-01" }`

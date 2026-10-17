@@ -15,6 +15,11 @@
     // Only the sandbox is supported. PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are secrets
     // (wrangler secret put / .dev.vars). Without them the built-in mock is used.
     "PAYPAL_ENV": "sandbox",
+    // Public demo safety (src/guard.js): invoices may only be created for these addresses
+    // (comma-separated, "@domain" allowed). Empty = creating invoices at PayPal is refused.
+    "SEND_ALLOWED_EMAILS": "",
+    // Max PayPal write actions (create/send/remind/record) per UTC day.
+    "WRITE_DAILY_CAP": "50",
     "LLM_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     // Hard cap on LLM invocations per UTC day. Above this the app uses its rule-based reader and templates.
     "LLM_DAILY_CAP": "60",

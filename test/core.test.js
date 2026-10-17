@@ -218,3 +218,34 @@ test('quiet period uses our own reminder record (PayPal does not update last_sen
   const ov2 = await call('GET', `/api/overview?today=${today}`);
   assert.equal(ov2.body.rows.find((r) => r.id === chen.id).next.action, 'wait');
 });
+
+test('public demo guard: sample mode, recipient allow-list and daily write cap', async () => {
+  const { _resetGuard } = await import('../src/guard.js');
+  const { _resetTokenCache } = await import('../src/paypal/client.js');
+  _resetGuard(); _resetTokenCache(); resetMock();
+  const created = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u, init) => {
+    if (u.endsWith('/v1/oauth2/token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { status: 200 });
+    if (init.method === 'POST' && u.endsWith('/v2/invoicing/invoices')) { created.push(JSON.parse(init.body)); return new Response(JSON.stringify({ id: 'INV2-L1', status: 'DRAFT', ...JSON.parse(init.body) }), { status: 201 }); }
+    return new Response('{}', { status: 200 });
+  };
+  try {
+    const env = { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 's', SEND_ALLOWED_EMAILS: 'buyer@personal.example.com', WRITE_DAILY_CAP: '2' };
+    const req = (path, payload, headers = {}) => worker.fetch(new Request(`http://x${path}`, { method: payload ? 'POST' : 'GET', headers: { 'content-type': 'application/json', ...headers }, body: payload ? JSON.stringify(payload) : undefined }), env).then(async (r) => ({ status: r.status, body: await r.json() }));
+    const draft = (email) => ({ draft: { recipient: { email }, items: [{ name: 'Work', unit_amount: 10 }] }, today: TODAY });
+    assert.equal((await req('/api/health')).body.paypal.mode, 'live');
+    assert.equal((await req('/api/health?data=sample')).body.paypal.mode, 'mock');
+    assert.equal((await req('/api/invoices', draft('someone@gmail.com'))).status, 403);
+    assert.equal((await req('/api/invoices', draft(''))).status, 403);
+    assert.equal(created.length, 0);
+    assert.equal((await req('/api/invoices', draft('buyer@personal.example.com'))).status, 201);
+    assert.equal((await req('/api/invoices', draft('buyer@personal.example.com'))).status, 201);
+    assert.equal((await req('/api/invoices', draft('buyer@personal.example.com'))).status, 429); // cap of 2
+    assert.equal(created.length, 2);
+    assert.equal((await req('/api/invoices?data=sample', draft('anyone@gmail.com'))).status, 201); // sample data never reaches PayPal
+    assert.equal(created.length, 2);
+    const closed = await worker.fetch(new Request('http://x/api/invoices', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(draft('buyer@personal.example.com')) }), { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 's' });
+    assert.equal(closed.status, 403); // no allow-list configured -> refuse
+  } finally { globalThis.fetch = realFetch; }
+});

@@ -9,6 +9,7 @@ import { extractDraft } from './agent/extract.js';
 import { nextAction, draftReminder, TONES } from './agent/collect.js';
 import { incoming, reconcile } from './agent/reconcile.js';
 import { createHistory, lastContact } from './agent/history.js';
+import { checkRecipient, takeWrite, allowedRecipients } from './guard.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(data), { status, headers: { ...JSON_HEADERS, ...extra } });
@@ -89,12 +90,22 @@ async function overview(pp, today, history) {
 async function handleApi(request, env, url) {
   const path = url.pathname;
   const m = path.match(/^\/api\/invoices\/([A-Za-z0-9-]+)(?:\/(send|remind|reminder-draft|payments))?$/);
-  const pp = () => createPayPal(env);
+  // "Sample data" mode: the built-in mock with fictional invoices, even when PayPal credentials are set.
+  const sample = url.searchParams.get('data') === 'sample' || request.headers.get('x-paid-up-data') === 'sample';
+  const pp = () => createPayPal(sample ? { ...env, PAYPAL_CLIENT_ID: '', PAYPAL_CLIENT_SECRET: '' } : env);
+  // Before anything is written to the sandbox: count it against the daily cap and, for an existing
+  // invoice, check that it belongs to an allowed recipient.
+  const guardWrite = async (client, { email, invoiceId } = {}) => {
+    if (client.mode !== 'live') return;
+    if (invoiceId) email = summarize(await client.getInvoice(invoiceId)).recipient.email;
+    checkRecipient(env, email);
+    await takeWrite(env);
+  };
   const withCalls = (client, data) => ({ ...data, paypal_calls: client.calls, paypal_mode: client.mode });
 
   if (path === '/api/health' && request.method === 'GET') {
     const client = pp();
-    return json({ ok: true, paypal: { mode: client.mode, environment: client.environment }, llm: await createLLM(env).status(), tones: TONES });
+    return json({ ok: true, paypal: { mode: client.mode, environment: client.environment, sample, allowed_recipients: client.mode === 'live' ? allowedRecipients(env) : null }, llm: await createLLM(env).status(), tones: TONES });
   }
 
   // 1. Read a messy request into an invoice draft (nothing is sent to PayPal).
@@ -110,6 +121,7 @@ async function handleApi(request, env, url) {
     const b = await body(request);
     const draft = validateDraft(b.draft);
     const client = pp();
+    await guardWrite(client, { email: draft.recipient.email });
     const inv = await client.createDraft(toPayPalInvoice(draft, { invoicerEmail: env.PAYPAL_INVOICER_EMAIL || undefined }));
     return json(withCalls(client, { invoice: summarize(inv, dateParam(b.today)) }), 201);
   }
@@ -128,6 +140,7 @@ async function handleApi(request, env, url) {
     }
     if (verb === 'send' && request.method === 'POST') {
       const b = await body(request);
+      await guardWrite(client, { invoiceId: id });
       await client.send(id, { send_to_recipient: true, send_to_invoicer: true, subject: b.subject || undefined, note: b.note || undefined });
       return json(withCalls(client, { invoice: summarize(await client.getInvoice(id), dateParam(b.today)) }));
     }
@@ -141,6 +154,7 @@ async function handleApi(request, env, url) {
     if (verb === 'remind' && request.method === 'POST') {
       const b = await body(request);
       if (!b.subject || !b.note) throw bad('subject and note are required (draft one with /reminder-draft first)');
+      await guardWrite(client, { invoiceId: id });
       await client.remind(id, { subject: String(b.subject).slice(0, 4000), note: String(b.note).slice(0, 4000), send_to_invoicer: true, send_to_recipient: true });
       const history = createHistory(env);
       await history.recordReminder(id, new Date().toISOString());
@@ -153,6 +167,7 @@ async function handleApi(request, env, url) {
       const inv = summarize(await client.getInvoice(id), dateParam(b.today));
       const amount = toAmount(b.amount ?? inv.due, inv.currency);
       if (Number(amount) <= 0 || Number(amount) > Number(inv.due)) throw bad(`amount must be between 0 and the balance due (${inv.due})`);
+      await guardWrite(client, { email: inv.recipient.email });
       await client.recordPayment(id, {
         method,
         payment_date: dateParam(b.payment_date || b.today),
