@@ -22,6 +22,23 @@ Rules:
 - "evidence" quotes must be copied word-for-word from the text.
 - note: one polite sentence thanking the client and naming the work, in the language of the text.`;
 
+// JSON schema for Workers AI JSON mode (keeps the model to the shape we parse).
+const DRAFT_SCHEMA = {
+  type: 'object',
+  properties: {
+    recipient: { type: 'object', properties: { name: { type: 'string' }, business: { type: 'string' }, email: { type: 'string' } } },
+    items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, quantity: { type: 'number' }, unit_amount: { type: 'number' } }, required: ['name', 'quantity', 'unit_amount'] } },
+    currency: { type: 'string' },
+    due_date: { type: ['string', 'null'] },
+    note: { type: 'string' },
+    evidence: { type: 'object', properties: { recipient: { type: ['string', 'null'] }, items: { type: 'array', items: { type: 'string' } }, due_date: { type: ['string', 'null'] } } },
+  },
+  required: ['recipient', 'items', 'currency', 'evidence'],
+};
+
+// Words for adjustments an invoice line cannot express (validateDraft refuses negative prices).
+const ADJUST = /\d+\s?%|discount|\boff\b|rush fee|deposit|already paid|tax|shipping|minus|\bless\b/gi;
+
 export async function extractDraft(text, { llm, today }) {
   const source = String(text || '').slice(0, MAX_INPUT).trim();
   if (!source) throw Object.assign(new Error('text is required'), { status: 400 });
@@ -34,13 +51,13 @@ export async function extractDraft(text, { llm, today }) {
       const out = await llm.chat([
         { role: 'system', content: SYSTEM },
         { role: 'user', content: `TODAY: ${today}\n\nTEXT:\n${source}` },
-      ], { maxTokens: 700, temperature: 0 });
+      ], { maxTokens: 900, temperature: 0, responseFormat: { type: 'json_schema', json_schema: DRAFT_SCHEMA } });
       const parsed = extractJson(out.text);
       if (parsed && Array.isArray(parsed.items)) {
         draft = parsed;
         via = 'llm';
       } else {
-        trace.push({ step: 'llm', note: 'model did not return usable JSON; used rules' });
+        trace.push({ step: 'llm', note: `model did not return usable JSON; used rules (output began: ${JSON.stringify(String(out.text || '').slice(0, 120))})` });
       }
     } catch (e) {
       trace.push({ step: 'llm', note: `LLM call failed: ${e.message}; used rules` });
@@ -51,6 +68,12 @@ export async function extractDraft(text, { llm, today }) {
 
   if (!draft) draft = ruleExtract(source, today);
   const checks = verify(draft, source);
+  if (via === 'llm') {
+    // The model may silently ignore "take the $200 deposit off" or "10% off". Say so.
+    const named = (draft.items || []).map((i) => String(i.name).toLowerCase()).join(' ');
+    const hits = [...new Set((source.match(ADJUST) || []).map((e) => e.toLowerCase()))].filter((e) => !named.includes(e.replace(/\d+\s?/, '').trim()));
+    if (hits.length) checks.unshift({ field: 'adjustments', ok: false, value: hits.join(', '), reason: `The text mentions ${hits.join(', ')}. Check that the line items and total reflect it; discounts and deposits are not applied automatically.` });
+  }
   if (via === 'rules') {
     // A quote being present does not mean the rules understood it (e.g. "12 slides at $40/slide,
     // 10% off, plus a $100 rush fee" on one line). Never present a rule-based read as checked.
@@ -169,6 +192,20 @@ function findName(text) {
   return m ? m[1] : '';
 }
 
+function numVariants(v) {
+  const n = Number(v);
+  const set = new Set([String(v), String(n), n.toFixed(2), n.toLocaleString('en-US'), n.toLocaleString('en-US', { minimumFractionDigits: 2 })]);
+  return [...set].map((x) => x.replace(/[.]/g, '\\.'));
+}
+function moneyPattern(v) {
+  const nums = numVariants(v).join('|');
+  return new RegExp(`(?:[$€£¥]|\\b(?:USD|EUR|GBP|JPY)\\s?)\\s?(?:${nums})(?![\\d.,]*\\d)|(?<![\\d.,])(?:${nums})\\s?(?:USD|EUR|GBP|JPY|dollars|euros|円)`, 'i');
+}
+function rateAfter(v) {
+  const nums = numVariants(v).join('|');
+  return new RegExp(`(?:[$€£¥]|\\b(?:USD|EUR|GBP|JPY)\\s?)\\s?(?:${nums})(?![\\d.,]*\\d)\\s*(?:/|per\\b|each\\b|an?\\s+(?:hour|word|page|slide|session|item))`, 'i');
+}
+
 /** Check every quoted piece of evidence against the source text. */
 export function verify(draft, source) {
   const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -181,8 +218,17 @@ export function verify(draft, source) {
   checks.push({ field: 'recipient', ok: has(ev.recipient), value: draft.recipient?.name || draft.recipient?.business || '', reason: has(ev.recipient) ? 'quoted from text' : 'not quoted from text; please check' });
   (draft.items || []).forEach((it, i) => {
     const q = Array.isArray(ev.items) ? ev.items[i] : null;
-    const priceSeen = src.includes(String(it.unit_amount)) || src.includes(Number(it.unit_amount).toLocaleString('en-US'));
-    checks.push({ field: `items[${i}]`, ok: has(q) && priceSeen, value: `${it.quantity} x ${it.unit_amount} ${it.name}`, reason: !has(q) ? 'not quoted from text; please check' : priceSeen ? 'price found in text' : 'price is computed (e.g. total split per unit); please check' });
+    // The price must appear as money ("$12", "EUR 180", "12 dollars"), not just as any number ("12 slides").
+    const money = moneyPattern(it.unit_amount);
+    const priceSeen = money.test(source);
+    // "$0.09 per word" / "$45/hr" / "$12 each" with quantity 1 usually means the quantity was missed.
+    const rate = Number(it.quantity) === 1 && rateAfter(it.unit_amount).test(source);
+    const ok = has(q) && priceSeen && !rate;
+    const reason = !has(q) ? 'not quoted from text; please check'
+      : !priceSeen ? 'this price is not written as an amount in the text (computed or misread); please check'
+      : rate ? 'the text gives this as a rate (per unit) but the quantity is 1; please check the quantity'
+      : 'price found in text';
+    checks.push({ field: `items[${i}]`, ok, value: `${it.quantity} x ${it.unit_amount} ${it.name}`, reason });
   });
   if (draft.due_date) checks.push({ field: 'due_date', ok: has(ev.due_date), value: draft.due_date, reason: has(ev.due_date) ? `from "${ev.due_date}"` : 'date was inferred; please check' });
   return checks;

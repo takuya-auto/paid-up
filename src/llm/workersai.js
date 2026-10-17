@@ -61,12 +61,13 @@ export function createLLM(env, { now = () => new Date() } = {}) {
    * One chat completion. Returns { text, toolCalls:[{name, arguments}], raw }.
    * Throws if the LLM is unavailable or the call fails; callers must catch.
    */
-  async function chat(messages, { tools, maxTokens = 700, temperature = 0.2 } = {}) {
+  async function chat(messages, { tools, maxTokens = 700, temperature = 0.2, responseFormat } = {}) {
     if (!(await available())) throw new Error(`LLM unavailable: ${lastReason}`);
     usedThisRequest++;
     await bump();
     const input = { messages, max_tokens: maxTokens, temperature };
     if (tools && tools.length) input.tools = tools;
+    if (responseFormat) input.response_format = responseFormat; // Workers AI JSON mode
     const raw = await ai.run(model, input);
     return normalize(raw);
   }
@@ -88,7 +89,9 @@ export function normalize(raw) {
     const msg = raw.choices[0].message;
     return { text: msg.content || '', toolCalls: parseToolCalls(msg.tool_calls), raw };
   }
-  return { text: raw.response || raw.result?.response || '', toolCalls: parseToolCalls(raw.tool_calls), raw };
+  const resp = raw.response ?? raw.result?.response ?? '';
+  // In JSON mode Workers AI may return the parsed object instead of a string.
+  return { text: typeof resp === 'string' ? resp : JSON.stringify(resp), toolCalls: parseToolCalls(raw.tool_calls), raw };
 }
 
 function parseToolCalls(list) {

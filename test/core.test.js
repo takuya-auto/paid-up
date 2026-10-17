@@ -303,3 +303,26 @@ test('rule reader on typical requests (used when the daily AI cap is reached)', 
   assert.equal(ruleExtract('8 illustrations at EUR 180 each. Payment within 21 days.', TODAY).currency, 'EUR');
   assert.equal(ruleExtract('8 illustrations at EUR 180 each. Payment within 21 days.', TODAY).due_date, '2026-11-22');
 });
+
+test('AI read that ignores a deposit or discount gets an adjustments warning', async () => {
+  const llm = { available: async () => true, chat: async () => ({ text: '{"recipient":{"name":"Daniel Kim","email":"d@k.example.com"},"items":[{"name":"half-day session","quantity":1,"unit_amount":600}],"currency":"USD","due_date":null,"note":"","evidence":{"recipient":"Daniel Kim","items":["half-day session $600"]}}' }) };
+  const out = await extractDraft('half-day session $600. We already paid the $200 deposit, so please take that off. Daniel Kim d@k.example.com', { llm, today: TODAY });
+  assert.equal(out.via, 'llm');
+  assert.equal(out.checks[0].field, 'adjustments');
+  assert.match(out.checks[0].value, /deposit/);
+  const clean = await extractDraft('half-day session $600. Daniel Kim d@k.example.com', { llm, today: TODAY });
+  assert.ok(!clean.checks.some((c) => c.field === 'adjustments'));
+});
+
+test('misread prices seen in the live AI run are flagged (req-04 rate as total, req-07 count as price)', () => {
+  const t4 = 'Hi, the Japanese-to-English translation of our 3,200-word user guide is approved. Your rate was $0.09 per word. Please bill Harbor Lane Software.';
+  const c4 = verify({ recipient: { name: 'Priya' }, items: [{ name: 'translation', quantity: 1, unit_amount: 0.09 }], evidence: { items: ['Your rate was $0.09 per word'] } }, t4);
+  assert.equal(c4.find((c) => c.field === 'items[0]').ok, false);
+  assert.match(c4.find((c) => c.field === 'items[0]').reason, /rate/);
+  assert.equal(verify({ items: [{ name: 'translation', quantity: 3200, unit_amount: 0.09 }], evidence: { items: ['Your rate was $0.09 per word'] } }, t4).find((c) => c.field === 'items[0]').ok, true);
+  const t7 = 'The pitch deck redesign (12 slides at $40/slide) came out great.';
+  const c7 = verify({ items: [{ name: 'pitch deck redesign (12 slides)', quantity: 1, unit_amount: 12 }], evidence: { items: ['The pitch deck redesign (12 slides at $40/slide)'] } }, t7);
+  assert.equal(c7.find((c) => c.field === 'items[0]').ok, false); // 12 is a count, not money
+  assert.equal(verify({ items: [{ name: 'deck', quantity: 12, unit_amount: 40 }], evidence: { items: ['12 slides at $40/slide'] } }, t7).find((c) => c.field === 'items[0]').ok, true);
+  assert.equal(verify({ items: [{ name: 'x', quantity: 1, unit_amount: 1500 }], evidence: { items: ['fee 1,500 USD'] } }, 'fee 1,500 USD').find((c) => c.field === 'items[0]').ok, true);
+});
