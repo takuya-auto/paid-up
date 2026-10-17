@@ -54,8 +54,11 @@ async function overview(pp, today, history) {
   const start = new Date(end.getTime() - 30 * 86400000); // Transaction Search allows up to 31 days per call
   let txs = [];
   let txError = null;
+  let txRefreshed = null;
   try {
-    txs = incoming(await pp.searchTransactions({ start: start.toISOString().replace(/\.\d{3}Z$/, 'Z'), end: end.toISOString().replace(/\.\d{3}Z$/, 'Z') }));
+    const raw = await pp.searchTransactions({ start: start.toISOString().replace(/\.\d{3}Z$/, 'Z'), end: end.toISOString().replace(/\.\d{3}Z$/, 'Z') });
+    txRefreshed = raw?.last_refreshed_datetime || null; // Transaction Search data lags behind real time
+    txs = incoming(raw);
   } catch (e) { txError = e.message; }
   const { matches, unmatched } = reconcile(rows, txs);
   const byInvoice = new Map(matches.map((m) => [m.invoice_id, m]));
@@ -79,6 +82,7 @@ async function overview(pp, today, history) {
       currency: rows[0]?.currency || 'USD',
     },
     transaction_search_error: txError,
+    transactions_refreshed_at: txRefreshed,
   };
 }
 

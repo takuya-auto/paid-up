@@ -92,7 +92,7 @@ export function createMockPayPal() {
     },
     async searchTransactions() {
       log('GET', '/v1/reporting/transactions');
-      return { transaction_details: structuredClone(store.transactions), total_items: store.transactions.length };
+      return { transaction_details: structuredClone(store.transactions), total_items: store.transactions.length, last_refreshed_datetime: nowIso() };
     },
   };
 }

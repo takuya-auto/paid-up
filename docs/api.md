@@ -39,7 +39,8 @@ Response:
   "rows": [Row + { "match": Match|null, "next": NextAction }],   // sorted: most urgent first
   "unmatched_payments": [Tx],
   "totals": { "outstanding": "0.00", "overdue": "0.00", "due_next_14_days": "0.00", "waiting_to_record": "0.00", "currency": "USD" },
-  "transaction_search_error": null | "message"
+  "transaction_search_error": null | "message",
+  "transactions_refreshed_at": "2026-10-17T02:59:59Z" | null   // PayPal's search data only covers payments up to this time
 }
 ```
 
