@@ -1,10 +1,14 @@
 // In-memory stand-in for the PayPal sandbox. Same response shapes as Invoicing v2 and
-// Transaction Search v1 (only the fields this app reads). State lives per isolate and is
-// seeded with fictional customers so the UI has something to show.
+// Transaction Search v1 (only the fields this app reads), seeded with fictional customers.
+// Each sample session (one per browser, id sent by the UI) gets its own copy, so one visitor's
+// actions do not change what the next visitor sees. Copies live in the isolate's memory, are
+// dropped after SESSION_IDLE_MS without use, and at most MAX_SESSIONS are kept.
 
 import { SEED_INVOICES, SEED_TRANSACTIONS } from '../../fixtures/seed.js';
 
-let store = null;
+const stores = new Map(); // session -> { store, touched }
+const MAX_SESSIONS = 300;
+const SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
 
 function fresh() {
   return {
@@ -14,13 +18,35 @@ function fresh() {
   };
 }
 
-export function resetMock() { store = fresh(); }
+/** Reset one sample session, or all of them. */
+export function resetMock(session) {
+  if (session === undefined) stores.clear();
+  else stores.delete(normSession(session));
+}
+
+export function normSession(s) {
+  return /^[A-Za-z0-9-]{8,64}$/.test(String(s || '')) ? String(s) : 'shared';
+}
+
+function storeFor(session) {
+  const key = normSession(session);
+  const now = Date.now();
+  for (const [k, v] of stores) if (now - v.touched > SESSION_IDLE_MS) stores.delete(k);
+  let entry = stores.get(key);
+  if (!entry) {
+    if (stores.size >= MAX_SESSIONS) stores.delete(stores.keys().next().value); // oldest first
+    entry = { store: fresh() };
+    stores.set(key, entry);
+  }
+  entry.touched = now;
+  return entry.store;
+}
 
 const nowIso = () => new Date().toISOString();
 const notFound = (id) => Object.assign(new Error(`PayPal: invoice ${id} not found (mock)`), { status: 404 });
 
-export function createMockPayPal() {
-  if (!store) store = fresh();
+export function createMockPayPal(env = {}, { session, sample = false } = {}) {
+  const store = storeFor(session);
   const calls = [];
   const log = (method, path, status = 200) => calls.push({ method, path, status, ms: 0, mock: true });
 
@@ -41,7 +67,7 @@ export function createMockPayPal() {
   }
 
   return {
-    mode: 'mock',
+    mode: sample ? 'sample' : 'mock',
     environment: 'mock',
     calls,
     async createDraft(body) {

@@ -3,6 +3,7 @@
 // click; drafting, reminder wording and payment matching only propose.
 
 import { createPayPal } from './paypal/client.js';
+import { normSession, resetMock } from './paypal/mock.js';
 import { toPayPalInvoice, summarize, validateDraft, PAYMENT_METHODS, toAmount } from './paypal/build.js';
 import { createLLM } from './llm/workersai.js';
 import { extractDraft } from './agent/extract.js';
@@ -92,7 +93,10 @@ async function handleApi(request, env, url) {
   const m = path.match(/^\/api\/invoices\/([A-Za-z0-9-]+)(?:\/(send|remind|reminder-draft|payments))?$/);
   // "Sample data" mode: the built-in mock with fictional invoices, even when PayPal credentials are set.
   const sample = url.searchParams.get('data') === 'sample' || request.headers.get('x-paid-up-data') === 'sample';
-  const pp = () => createPayPal(sample ? { ...env, PAYPAL_CLIENT_ID: '', PAYPAL_CLIENT_SECRET: '' } : env);
+  const session = normSession(url.searchParams.get('session') || request.headers.get('x-paid-up-session'));
+  const pp = () => createPayPal(env, { sample, session });
+  // Sample sessions keep their reminder record in memory under their own prefix (never in KV).
+  const history = () => (sample ? createHistory({}, { prefix: `sample:${session}:` }) : createHistory(env));
   // Before anything is written to the sandbox: count it against the daily cap and, for an existing
   // invoice, check that it belongs to an allowed recipient.
   const guardWrite = async (client, { email, invoiceId } = {}) => {
@@ -102,6 +106,13 @@ async function handleApi(request, env, url) {
     await takeWrite(env);
   };
   const withCalls = (client, data) => ({ ...data, paypal_calls: client.calls, paypal_mode: client.mode });
+
+  // Reset this browser's sample data to the starting set (sample mode only).
+  if (path === '/api/sample/reset' && request.method === 'POST') {
+    if (!sample) throw bad('Reset is only available for sample data (?data=sample)');
+    resetMock(session);
+    return json({ ok: true, session });
+  }
 
   if (path === '/api/health' && request.method === 'GET') {
     const client = pp();
@@ -129,7 +140,7 @@ async function handleApi(request, env, url) {
   // 3. The overview: every invoice with its next action, plus payment matches.
   if (path === '/api/overview' && request.method === 'GET') {
     const client = pp();
-    return json(withCalls(client, await overview(client, dateParam(url.searchParams.get('today')), createHistory(env))));
+    return json(withCalls(client, await overview(client, dateParam(url.searchParams.get('today')), history())));
   }
 
   if (m) {
@@ -147,7 +158,7 @@ async function handleApi(request, env, url) {
     if (verb === 'reminder-draft' && request.method === 'POST') {
       const b = await body(request);
       const today = dateParam(b.today);
-      const row = await withContact(summarize(await client.getInvoice(id), today), createHistory(env));
+      const row = await withContact(summarize(await client.getInvoice(id), today), history());
       const llm = createLLM(env);
       return json(withCalls(client, { invoice_id: id, reminder: await draftReminder(row, { tone: b.tone, llm, today }), next: nextAction(row, today) }));
     }
@@ -156,9 +167,9 @@ async function handleApi(request, env, url) {
       if (!b.subject || !b.note) throw bad('subject and note are required (draft one with /reminder-draft first)');
       await guardWrite(client, { invoiceId: id });
       await client.remind(id, { subject: String(b.subject).slice(0, 4000), note: String(b.note).slice(0, 4000), send_to_invoicer: true, send_to_recipient: true });
-      const history = createHistory(env);
-      await history.recordReminder(id, new Date().toISOString());
-      return json(withCalls(client, { invoice: await withContact(summarize(await client.getInvoice(id), dateParam(b.today)), history) }));
+      const h = history();
+      await h.recordReminder(id, new Date().toISOString());
+      return json(withCalls(client, { invoice: await withContact(summarize(await client.getInvoice(id), dateParam(b.today)), h) }));
     }
     if (verb === 'payments' && request.method === 'POST') {
       const b = await body(request);

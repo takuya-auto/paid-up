@@ -17,8 +17,8 @@ const BASES = {
 
 let tokenCache = null; // { key, token, expiresAt } (per isolate)
 
-export function createPayPal(env, { fetchImpl = fetch, now = () => Date.now() } = {}) {
-  if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) return createMockPayPal(env);
+export function createPayPal(env, { fetchImpl = fetch, now = () => Date.now(), sample = false, session } = {}) {
+  if (sample || !env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) return createMockPayPal(env, { session, sample });
   const envName = (env.PAYPAL_ENV || 'sandbox').toLowerCase();
   if (envName !== 'sandbox') throw new Error('Only the PayPal sandbox is supported in this project');
   const base = BASES.sandbox;

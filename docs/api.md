@@ -11,6 +11,16 @@ endpoints that the UI triggers from a user's click; reading, drafting and matchi
 ## Sample data mode
 Add `?data=sample` to any endpoint (or send header `x-paid-up-data: sample`) to use the built-in mock with
 fictional invoices and payments, even when PayPal credentials are configured. Nothing in this mode reaches PayPal.
+Responses then carry `paypal_mode: "sample"` (`"mock"` = no credentials configured, `"live"` = PayPal sandbox).
+
+Each browser should also send `&session=<id>` (or header `x-paid-up-session`): 8-64 chars of `[A-Za-z0-9-]`,
+generated once by the UI and kept in localStorage. Each session gets its own copy of the sample data, so one
+visitor recording a payment does not change what another visitor sees. Copies live in Worker memory, are
+dropped after 2 hours without use (and at most 300 are kept), so a returning visitor may find the starting set again.
+Without a valid id, all requests share one copy.
+
+## POST /api/sample/reset?data=sample&session=<id>
+Restores that session's sample data to the starting set → `{ ok: true, session }`. 400 outside sample mode.
 
 ## Public demo limits (live sandbox mode only)
 - Creating an invoice for an address not in `SEND_ALLOWED_EMAILS` -> `403` (message names the allowed sandbox buyer).

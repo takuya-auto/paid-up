@@ -235,7 +235,7 @@ test('public demo guard: sample mode, recipient allow-list and daily write cap',
     const req = (path, payload, headers = {}) => worker.fetch(new Request(`http://x${path}`, { method: payload ? 'POST' : 'GET', headers: { 'content-type': 'application/json', ...headers }, body: payload ? JSON.stringify(payload) : undefined }), env).then(async (r) => ({ status: r.status, body: await r.json() }));
     const draft = (email) => ({ draft: { recipient: { email }, items: [{ name: 'Work', unit_amount: 10 }] }, today: TODAY });
     assert.equal((await req('/api/health')).body.paypal.mode, 'live');
-    assert.equal((await req('/api/health?data=sample')).body.paypal.mode, 'mock');
+    assert.equal((await req('/api/health?data=sample')).body.paypal.mode, 'sample');
     assert.equal((await req('/api/invoices', draft('someone@gmail.com'))).status, 403);
     assert.equal((await req('/api/invoices', draft(''))).status, 403);
     assert.equal(created.length, 0);
@@ -248,4 +248,20 @@ test('public demo guard: sample mode, recipient allow-list and daily write cap',
     const closed = await worker.fetch(new Request('http://x/api/invoices', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(draft('buyer@personal.example.com')) }), { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 's' });
     assert.equal(closed.status, 403); // no allow-list configured -> refuse
   } finally { globalThis.fetch = realFetch; }
+});
+
+test('sample sessions are isolated per browser and can be reset', async () => {
+  resetMock();
+  const today = new Date().toISOString().slice(0, 10);
+  const A = 'sessionAAAA1111', B = 'sessionBBBB2222';
+  const ov = (s) => call('GET', `/api/overview?data=sample&session=${s}&today=${today}`);
+  const okaforA = (await ov(A)).body.rows.find((r) => r.recipient.business === 'Okafor Plumbing');
+  assert.equal(okaforA.next.action, 'record_payment');
+  await call('POST', `/api/invoices/${okaforA.id}/payments?data=sample&session=${A}`, { tx_id: okaforA.match.tx_id, today });
+  assert.equal((await ov(A)).body.rows.find((r) => r.id === okaforA.id).next.action, 'none');
+  assert.equal((await ov(B)).body.rows.find((r) => r.id === okaforA.id).next.action, 'record_payment'); // B unaffected
+  assert.equal((await ov(A)).body.paypal_mode, 'sample');
+  assert.equal((await call('POST', `/api/sample/reset?data=sample&session=${A}`, {})).status, 200);
+  assert.equal((await ov(A)).body.rows.find((r) => r.id === okaforA.id).next.action, 'record_payment');
+  assert.equal((await call('POST', '/api/sample/reset', {})).status, 400); // only in sample mode
 });

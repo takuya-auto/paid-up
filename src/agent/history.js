@@ -5,9 +5,9 @@
 
 const memory = new Map();
 
-export function createHistory(env) {
+export function createHistory(env, { prefix = '' } = {}) {
   const kv = env.CAP_KV;
-  const key = (id) => `remind:${id}`;
+  const key = (id) => `remind:${prefix}${id}`;
   return {
     async lastReminder(id) {
       if (kv) { try { return (await kv.get(key(id))) || null; } catch { /* fall back */ } }
