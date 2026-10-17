@@ -51,6 +51,19 @@ export async function extractDraft(text, { llm, today }) {
 
   if (!draft) draft = ruleExtract(source, today);
   const checks = verify(draft, source);
+  if (via === 'rules') {
+    // A quote being present does not mean the rules understood it (e.g. "12 slides at $40/slide,
+    // 10% off, plus a $100 rush fee" on one line). Never present a rule-based read as checked.
+    for (const c of checks) {
+      if (c.field.startsWith('items[') || c.field === 'due_date') {
+        c.ok = false;
+        c.reason = `read by simple rules (AI unavailable): check the name, quantity and price; ${c.reason}`;
+      }
+    }
+    const extras = source.match(/\d+\s?%|discount|\boff\b|rush fee|deposit|tax|shipping|minus|less\b/gi);
+    checks.unshift({ field: 'reader', ok: false, value: 'rules', reason: `AI unavailable, so this draft was read by simple rules${extras ? `; the text mentions ${[...new Set(extras.map((e) => e.toLowerCase()))].join(', ')}, which the rules do not apply` : ''}. Please review every line.` });
+    if (!draft.items.length) checks.push({ field: 'items', ok: false, value: '', reason: 'no price found; add the line items by hand' });
+  }
   return { draft: clean(draft), checks, via, trace };
 }
 

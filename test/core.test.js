@@ -187,3 +187,14 @@ test('live client: one OAuth token is reused, calls carry Bearer and PayPal-Debu
   assert.deepEqual(pp.calls.map((c) => [c.status, c.debug_id]), [[201, 'dbg2'], [404, 'dbg1']]);
   assert.throws(() => createPayPal({ PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 's', PAYPAL_ENV: 'live' }), /sandbox/);
 });
+
+test('a rule-based read is never shown as checked (discount + rush fee example)', async () => {
+  const text = "Hello! The pitch deck redesign (12 slides at $40/slide) came out great. As agreed there's a $100 rush fee, and you offered 10% off the slides since we're a returning client. Invoice to Oak Street Ventures, Chris Wu, chris.wu@oakstreet.example.com. Due Nov 15.";
+  const out = await extractDraft(text, { llm: null, today: TODAY });
+  assert.equal(out.via, 'rules');
+  assert.equal(out.checks[0].field, 'reader');
+  assert.equal(out.checks[0].ok, false);
+  assert.match(out.checks[0].reason, /10%/);
+  assert.match(out.checks[0].reason, /rush fee/);
+  assert.ok(out.checks.filter((c) => c.field.startsWith('items[')).every((c) => !c.ok));
+});
