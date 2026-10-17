@@ -1,8 +1,110 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Paid-Up</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paid-Up — invoices that chase themselves</title>
+  <meta name="description" content="Paid-Up turns a client's message into a PayPal invoice, tells you who to nudge next, and matches incoming payments. Every send is confirmed by you.">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b5cad'/%3E%3Cpath d='M9 17l5 5 9-12' stroke='white' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
 <body>
-<h1>Paid-Up</h1>
-<p>UI in progress. API: <a href="/api/health">/api/health</a>, <a href="/api/overview">/api/overview</a>. Contract: docs/api.md.</p>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">✓</span>
+      <div>
+        <h1>Paid-Up</h1>
+        <p class="tag">Invoices that chase themselves — and wait for your OK.</p>
+      </div>
+    </div>
+    <div class="modes" id="modes" aria-live="polite">
+      <span class="badge muted">connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis" aria-label="Totals">
+      <div class="kpi"><span class="k-label">Outstanding</span><span class="k-val" data-k="outstanding">–</span></div>
+      <div class="kpi warn"><span class="k-label">Overdue</span><span class="k-val" data-k="overdue">–</span></div>
+      <div class="kpi"><span class="k-label">Due in the next 14 days</span><span class="k-val" data-k="due_next_14_days">–</span></div>
+      <div class="kpi ok"><span class="k-label">Paid, waiting to record</span><span class="k-val" data-k="waiting_to_record">–</span></div>
+    </section>
+
+    <div class="layout">
+      <section class="panel compose" aria-labelledby="compose-h">
+        <h2 id="compose-h"><span class="step">1</span> Turn a message into an invoice</h2>
+        <label class="lbl" for="sample">Try a sample message</label>
+        <select id="sample"><option value="">— pick one —</option></select>
+        <label class="lbl" for="msg">Paste the client's email or chat</label>
+        <textarea id="msg" rows="8" placeholder="e.g. Hi! Could you bill us for the logo ($850) and the business cards ($150)? Make it out to …"></textarea>
+        <button id="read" class="primary">Read it</button>
+
+        <div id="draft" class="draft" hidden>
+          <div class="draft-head">
+            <h3>Draft invoice</h3>
+            <span class="badge" id="via"></span>
+          </div>
+          <div class="grid2">
+            <label>Client name<input id="d-name"></label>
+            <label>Business<input id="d-business"></label>
+            <label>Email<input id="d-email" type="email"></label>
+            <label>Currency<input id="d-currency" maxlength="3"></label>
+            <label>Due date<input id="d-due" type="date"></label>
+          </div>
+          <div id="items-grid" class="items-grid"></div>
+          <div class="items-actions">
+            <button id="add-item" class="ghost">+ Add line</button>
+            <span class="draft-total">Total <strong id="d-total">–</strong></span>
+          </div>
+          <ul id="checks" class="checks" aria-label="What the reader checked"></ul>
+          <button id="create" class="primary">Create draft at PayPal</button>
+          <p class="hint">Creates a <em>draft</em> invoice. Nothing reaches your client until you press Send.</p>
+        </div>
+      </section>
+
+      <section class="panel board" aria-labelledby="board-h">
+        <div class="board-head">
+          <h2 id="board-h"><span class="step">2</span> Who to chase next</h2>
+          <div class="board-tools">
+            <div class="chips" role="group" aria-label="Filter">
+              <button class="chip on" data-f="all">All</button>
+              <button class="chip" data-f="action">Needs action</button>
+              <button class="chip" data-f="overdue">Overdue</button>
+              <button class="chip" data-f="paid">Paid</button>
+            </div>
+            <input id="quick" type="search" placeholder="Search client, invoice #…" aria-label="Search">
+            <button id="export" class="ghost">Export CSV</button>
+            <button id="refresh" class="ghost" title="Reload from PayPal">↻</button>
+          </div>
+        </div>
+        <div id="grid" class="grid"></div>
+        <div id="unmatched" class="unmatched" hidden>
+          <h3>Money that arrived but matches no open invoice</h3>
+          <ul id="unmatched-list"></ul>
+          <p class="hint">Paid-Up never records these on its own. Check who sent them first.</p>
+        </div>
+      </section>
+
+      <aside class="panel side" id="side" aria-labelledby="side-h" hidden>
+        <button class="close" id="side-close" aria-label="Close">×</button>
+        <h2 id="side-h"><span class="step">3</span> <span id="side-title">Next step</span></h2>
+        <div id="side-body"></div>
+      </aside>
+    </div>
+
+    <section class="panel log" aria-labelledby="log-h">
+      <h2 id="log-h">What happened <small>— every PayPal call and every AI step, in order</small></h2>
+      <ol id="log"></ol>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>PayPal <strong>sandbox</strong> only — no real money moves.</span>
+    <span>Sample clients and emails are fictional (example.com).</span>
+    <span>Grid by <a href="https://www.ag-grid.com/" rel="noopener">AG Grid Community</a> (MIT).</span>
+  </footer>
+
+  <script src="/vendor/ag-grid-community-36.2.0.min.js"></script>
+  <script src="/app.js" type="module"></script>
 </body>
 </html>
