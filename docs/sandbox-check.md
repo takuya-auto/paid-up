@@ -8,7 +8,7 @@ has been run against the sandbox with real credentials (team rule: verify real A
 | POST /v1/oauth2/token (client credentials) | yes | 2026-10-17 | token reused across calls in one run |
 | POST /v2/invoicing/invoices (Prefer: return=representation) | yes | 2026-10-17 | returns the full invoice (id, status, detail, amount, links...). USD works on the JP sandbox account. A due date in the past is accepted |
 | GET /v2/invoicing/invoices/{id} | yes | 2026-10-17 | recipient_view_url present after send; invoice numbers 0001, 0002 auto-assigned |
-| GET /v2/invoicing/invoices?page_size=100&total_required=true | no | | |
+| GET /v2/invoicing/invoices?page_size=100&total_required=true | yes | 2026-10-17 | total_items and amount/due_amount/payments are returned, but line items are NOT -> the 'note mentions an invoiced item' matching reason needs a per-invoice GET (todo) |
 | POST /v2/invoicing/invoices/{id}/send | yes | 2026-10-17 | returns a link (href, rel, method); status becomes SENT |
 | Pay the invoice as the sandbox buyer | no | | status PAID; payments.transactions[].payment_id = transaction id? |
 | POST /v2/invoicing/invoices/{id}/remind | yes | 2026-10-17 | succeeds, but metadata.last_sent_time is NOT updated -> the app keeps its own reminder record (src/agent/history.js) |
