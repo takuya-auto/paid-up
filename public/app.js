@@ -17,11 +17,22 @@ const money = (v, cur = 'USD') => {
   try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur }).format(n); } catch { return `${cur} ${n.toFixed(2)}`; }
 };
 
-const state = { overview: null, health: null, filter: 'all', selected: null, tones: {} };
+// Data source: the live PayPal sandbox, or the built-in fictional sample (?data=sample on every API call).
+// Kept in the URL (shareable) and in localStorage (remembered for this viewer).
+function initialMode() {
+  const q = new URLSearchParams(location.search).get('data');
+  if (q === 'sample' || q === 'live') return q;
+  try { const m = localStorage.getItem('paidup-data'); if (m === 'sample' || m === 'live') return m; } catch { /* storage blocked */ }
+  return 'live';
+}
+const state = { overview: null, health: null, filter: 'all', selected: null, tones: {}, mode: initialMode() };
 
 // ---------- API ----------
 async function api(path, { method = 'GET', body } = {}) {
-  const url = method === 'GET' ? `${path}${path.includes('?') ? '&' : '?'}today=${today()}` : path;
+  const qs = new URLSearchParams();
+  if (method === 'GET') qs.set('today', today());
+  if (state.mode === 'sample') qs.set('data', 'sample');
+  const url = qs.toString() ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path;
   const res = await fetch(url, {
     method,
     headers: body ? { 'content-type': 'application/json' } : undefined,
@@ -52,9 +63,11 @@ async function loadHealth() {
     const h = await api('/api/health');
     state.health = h;
     state.tones = h.tones || {};
-    const pp = h.paypal?.mode === 'live'
-      ? `<span class="badge ok">PayPal ${esc(h.paypal.environment || 'sandbox')}</span>`
-      : '<span class="badge warn">PayPal mock (no sandbox keys)</span>';
+    const pp = h.paypal?.sample
+      ? '<span class="badge warn">Sample data · not sent to PayPal</span>'
+      : h.paypal?.mode === 'live'
+        ? `<span class="badge ok">PayPal ${esc(h.paypal.environment || 'sandbox')}</span>`
+        : '<span class="badge warn">PayPal mock (no sandbox keys)</span>';
     const l = h.llm || {};
     const ai = l.mode === 'off' || l.remaining === 0
       ? `<span class="badge warn" title="Daily AI budget used up — rules and templates take over">AI: rules only today</span>`
@@ -177,6 +190,7 @@ async function loadOverview({ select, keepSide = false } = {}) {
     grid.setGridOption('rowData', o.rows);
     updatePinned();
     renderUnmatched(o.unmatched_payments || []);
+    $('#try-sample').hidden = state.mode === 'sample' || o.rows.some((r) => r.match) || (o.unmatched_payments || []).length > 0;
     // PayPal's transaction search lags behind; say how far it reaches so a missing recent payment makes sense.
     const fresh = o.transactions_refreshed_at ? new Date(o.transactions_refreshed_at) : null;
     $('#tx-fresh').hidden = !fresh || Number.isNaN(fresh.getTime());
@@ -367,6 +381,14 @@ $('#read').addEventListener('click', async () => {
     const d = out.draft;
     $('#d-name').value = d.recipient.name; $('#d-business').value = d.recipient.business; $('#d-email').value = d.recipient.email;
     $('#d-currency').value = d.currency; $('#d-due').value = d.due_date || '';
+    const allowed = state.health?.paypal?.allowed_recipients || [];
+    const note = $('#recipient-note');
+    note.hidden = true;
+    if (state.mode === 'live' && state.health?.paypal?.mode === 'live' && allowed.length && !allowed.includes(d.recipient.email)) {
+      $('#d-email').value = allowed[0];
+      note.hidden = false;
+      note.textContent = `In this demo, invoices can only go to the sandbox test buyer, so the email is set to ${allowed[0]}${d.recipient.email ? ` (the message said ${d.recipient.email})` : ''}.`;
+    }
     itemsGrid.setGridOption('rowData', d.items.map((it) => ({ ...it })));
     $('#via').textContent = out.via === 'llm' ? 'read by AI' : 'read by rules (AI off)';
     $('#via').className = `badge ${out.via === 'llm' ? '' : 'warn'}`;
@@ -406,6 +428,26 @@ $('#create').addEventListener('click', async () => {
   } finally { b.disabled = false; }
 });
 
+// ---------- data source switch ----------
+function applyMode() {
+  document.querySelectorAll('.seg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === state.mode));
+  $('#sample-banner').hidden = state.mode !== 'sample';
+}
+async function setMode(mode) {
+  if (mode === state.mode) return;
+  state.mode = mode;
+  try { localStorage.setItem('paidup-data', mode); } catch { /* storage blocked */ }
+  const u = new URL(location.href); u.searchParams.set('data', mode); history.replaceState(null, '', u);
+  applyMode();
+  closeSide();
+  $('#draft').hidden = true;
+  log(`Switched to ${mode === 'sample' ? 'sample data (fictional, not sent to PayPal)' : 'the live PayPal sandbox'}.`);
+  await loadHealth();
+  await loadOverview();
+}
+document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
 // ---------- start ----------
+applyMode();
 loadHealth();
 loadOverview();

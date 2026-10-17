@@ -17,10 +17,17 @@
         <p class="tag">Invoices that chase themselves — and wait for your OK.</p>
       </div>
     </div>
-    <div class="modes" id="modes" aria-live="polite">
-      <span class="badge muted">connecting…</span>
+    <div class="head-right">
+      <div class="seg" role="group" aria-label="Data source">
+        <button data-mode="live">Live sandbox</button>
+        <button data-mode="sample">Sample data</button>
+      </div>
+      <div class="modes" id="modes" aria-live="polite">
+        <span class="badge muted">connecting…</span>
+      </div>
     </div>
   </header>
+  <div id="sample-banner" class="banner" hidden><b>Sample data (fictional).</b> These invoices, clients and payments are made up for the demo. Actions here are not sent to PayPal.</div>
 
   <main>
     <section class="kpis" id="kpis" aria-label="Totals">
@@ -52,6 +59,7 @@
             <label>Currency<input id="d-currency" maxlength="3"></label>
             <label>Due date<input id="d-due" type="date"></label>
           </div>
+          <p id="recipient-note" class="hint" hidden></p>
           <div id="items-grid" class="items-grid"></div>
           <div class="items-actions">
             <button id="add-item" class="ghost">+ Add line</button>
@@ -80,6 +88,7 @@
         </div>
         <div id="grid" class="grid"></div>
         <p id="tx-fresh" class="hint" hidden></p>
+        <p id="try-sample" class="hint" hidden>No incoming payments to match in the sandbox right now. To try payment matching, switch to <button class="linkish" data-mode="sample">Sample data</button>.</p>
         <div id="unmatched" class="unmatched" hidden>
           <h3>Money that arrived but matches no open invoice</h3>
           <ul id="unmatched-list"></ul>
