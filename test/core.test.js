@@ -198,3 +198,10 @@ test('a rule-based read is never shown as checked (discount + rush fee example)'
   assert.match(out.checks[0].reason, /rush fee/);
   assert.ok(out.checks.filter((c) => c.field.startsWith('items[')).every((c) => !c.ok));
 });
+
+test('zero-decimal currencies are sent without decimals (sandbox accounts are in JP)', () => {
+  const body = toPayPalInvoice({ currency: 'JPY', items: [{ name: 'Logo', quantity: 1, unit_amount: 15000 }] });
+  assert.equal(body.items[0].unit_amount.value, '15000');
+  assert.throws(() => toPayPalInvoice({ currency: 'JPY', items: [{ name: 'Logo', unit_amount: 99.5 }] }), /decimals/);
+  assert.equal(toPayPalInvoice({ items: [{ name: 'Logo', unit_amount: 99.5 }] }).items[0].unit_amount.value, '99.50');
+});

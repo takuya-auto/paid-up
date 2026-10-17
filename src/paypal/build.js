@@ -6,12 +6,19 @@ export const OPEN_STATUSES = new Set(['SENT', 'UNPAID', 'PARTIALLY_PAID', 'PAYME
 export const PAID_STATUSES = new Set(['PAID', 'MARKED_AS_PAID', 'PAID_EXTERNAL']);
 export const PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'CHECK', 'CREDIT_CARD', 'DEBIT_CARD', 'PAYPAL', 'WIRE_TRANSFER', 'OTHER'];
 
-const money = (currency, value) => ({ currency_code: currency, value: toAmount(value) });
+// PayPal rejects decimals for these currencies (e.g. JPY 1500, not 1500.00).
+export const ZERO_DECIMAL = new Set(['JPY', 'HUF', 'TWD']);
 
-/** Two-decimal string, as PayPal expects for money values. */
-export function toAmount(v) {
+const money = (currency, value) => ({ currency_code: currency, value: toAmount(value, currency) });
+
+/** Money value as PayPal expects it: two decimals, or none for zero-decimal currencies. */
+export function toAmount(v, currency = 'USD') {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0) throw Object.assign(new Error(`Invalid amount: ${v}`), { status: 400 });
+  if (ZERO_DECIMAL.has(String(currency).toUpperCase())) {
+    if (!Number.isInteger(n)) throw Object.assign(new Error(`${currency} amounts cannot have decimals: ${v}`), { status: 400 });
+    return String(n);
+  }
   return n.toFixed(2);
 }
 
@@ -30,7 +37,7 @@ export function validateDraft(d) {
     name: String(it.name || '').trim().slice(0, 200),
     description: it.description ? String(it.description).slice(0, 1000) : undefined,
     quantity: String(Number(it.quantity ?? 1) || 1),
-    unit_amount: toAmount(it.unit_amount ?? it.price ?? 0),
+    unit_amount: toAmount(it.unit_amount ?? it.price ?? 0, currency),
   })).filter((it) => it.name);
   if (!items.length) throw err('at least one line item is required');
   if (items.every((it) => Number(it.unit_amount) === 0)) throw err('line items have no price');

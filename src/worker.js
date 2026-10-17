@@ -138,7 +138,7 @@ async function handleApi(request, env, url) {
       const method = String(b.method || 'PAYPAL').toUpperCase();
       if (!PAYMENT_METHODS.includes(method)) throw bad(`method must be one of ${PAYMENT_METHODS.join(', ')}`);
       const inv = summarize(await client.getInvoice(id), dateParam(b.today));
-      const amount = toAmount(b.amount ?? inv.due);
+      const amount = toAmount(b.amount ?? inv.due, inv.currency);
       if (Number(amount) <= 0 || Number(amount) > Number(inv.due)) throw bad(`amount must be between 0 and the balance due (${inv.due})`);
       await client.recordPayment(id, {
         method,
