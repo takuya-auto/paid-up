@@ -177,6 +177,12 @@ async function loadOverview({ select, keepSide = false } = {}) {
     grid.setGridOption('rowData', o.rows);
     updatePinned();
     renderUnmatched(o.unmatched_payments || []);
+    // PayPal's transaction search lags behind; say how far it reaches so a missing recent payment makes sense.
+    const fresh = o.transactions_refreshed_at ? new Date(o.transactions_refreshed_at) : null;
+    $('#tx-fresh').hidden = !fresh || Number.isNaN(fresh.getTime());
+    if (fresh && !Number.isNaN(fresh.getTime())) {
+      $('#tx-fresh').textContent = `Payments shown up to ${fresh.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}. PayPal's transaction search lags behind, so a payment made after that is not matched yet.`;
+    }
     if (o.transaction_search_error) log(`<span class="s4">Transaction Search failed:</span> ${esc(o.transaction_search_error)} — payment matching skipped this time.`);
     if (select) {
       const row = o.rows.find((r) => r.id === select);
