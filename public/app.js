@@ -134,7 +134,7 @@ const columnDefs = [
     cellStyle: (p) => (Number(p.value) > 0 && !p.node.rowPinned ? { fontWeight: 600 } : null) },
   { field: 'due_date', headerName: 'Due', width: 104 },
   { field: 'days_overdue', headerName: 'Overdue', cellRenderer: OverdueCell, width: 110, comparator: (a, b) => a - b },
-  { headerName: 'Last contact', valueGetter: (p) => (p.data?.last_sent || '').slice(0, 10), width: 112, hide: window.innerWidth < 1700 },
+  { headerName: 'Last contact', valueGetter: (p) => (p.data?.last_contact || p.data?.last_sent || '').slice(0, 10), width: 112, hide: window.innerWidth < 1700 },
   { headerName: 'Why', valueGetter: (p) => p.data?.next?.why || '', flex: 1.4, minWidth: 200, tooltipValueGetter: (p) => p.data?.next?.why },
   { colId: 'actions', headerName: '', cellRenderer: ButtonCell, width: 138, sortable: false, pinned: 'right' },
 ];
@@ -223,7 +223,7 @@ function facts(r) {
     <dt>Total</dt><dd>${money(r.total, r.currency)}${Number(r.paid) > 0 ? ` · paid ${money(r.paid, r.currency)}` : ''}</dd>
     <dt>Balance</dt><dd><b>${money(r.due, r.currency)}</b></dd>
     <dt>Due</dt><dd>${esc(r.due_date || '—')}${r.days_overdue ? ` · <b>${r.days_overdue} days overdue</b>` : ''}</dd>
-    <dt>Last sent</dt><dd>${esc((r.last_sent || '').slice(0, 10) || '—')}</dd>
+    <dt>Last contact</dt><dd>${esc((r.last_contact || r.last_sent || '').slice(0, 10) || '—')}${r.last_reminder ? ' <small>(reminder)</small>' : ''}</dd>
   </dl>`;
 }
 
@@ -281,7 +281,7 @@ function openSide(r) {
         wireConfirm('do-remind', async () => {
           const subject = $('#rem-subj').value.trim(); const note = $('#rem-note').value.trim();
           const res = await api(`/api/invoices/${encodeURIComponent(r.id)}/remind`, { method: 'POST', body: { subject, note } });
-          $('#rem').insertAdjacentHTML('beforeend', `<p class="done">Reminder sent. Last contact is now ${esc((res.invoice.last_sent || '').slice(0, 10) || 'today')}.</p>`);
+          $('#rem').insertAdjacentHTML('beforeend', `<p class="done">Reminder sent. Last contact is now ${esc((res.invoice.last_contact || res.invoice.last_sent || '').slice(0, 10) || 'today')}.</p>`);
           log(`You sent a reminder for ${esc(r.number || r.id)}.`);
           await loadOverview({ keepSide: true });
         });
