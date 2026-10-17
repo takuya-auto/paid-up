@@ -11,7 +11,7 @@ export const TONES = {
   final: { label: 'Final notice', when: 'more than 21 days overdue' },
 };
 
-const QUIET_DAYS = 5; // do not remind the same client twice within this window
+const QUIET_DAYS = 5; // do not suggest reminding about the same invoice twice within this window
 
 export function toneFor(daysOverdue) {
   if (daysOverdue > 21) return 'final';
