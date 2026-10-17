@@ -19,6 +19,7 @@ Sending an invoice is the easy part. The hard part comes after it: noticing who 
 2. **Who to chase next.** All invoices sit in one board, sorted by what needs doing today: *send*, *remind*, *record payment*, *wait* or *nothing*. Each row has a plain-English reason ("25 days overdue; last contact 40 days ago"). The decision is rule-based on purpose. When money is involved, the "what" should be predictable and explainable.
 3. **Reminders in the right tone.** For an overdue invoice Paid-Up suggests a tone (friendly nudge → firm follow-up → final notice) from days overdue and the last time you contacted the client, and the AI drafts the message. You edit it, tick the confirmation and PayPal sends it with the payment link. Paid-Up records when you sent a reminder (PayPal's invoice metadata does not change on a reminder) and won't suggest another one within 5 days.
 4. **Matching incoming money.** Payments don't always come through the invoice link. Paid-Up searches your PayPal transactions and proposes which open invoice each payment settles, showing the reasons (amount equals the balance or the total, same email or email domain as the client, payer name matches, the payment note mentions an invoiced item). You confirm, and it is recorded on the invoice. A payment that matches nothing is listed for you to review; recording happens only through the *Record payment* action.
+   *Demo note:* matching is shown with the built-in **sample data (mock mode)**. The Transaction Search call is wired up and authorised in the sandbox, but matching has not been demonstrated against real sandbox payments.
 5. **Everything is visible.** A log shows every PayPal call (method, path, status) and every AI step, including when the app fell back to rules.
 
 ### Human in the loop, by design
@@ -40,7 +41,7 @@ Sending an invoice is the easy part. The hard part comes after it: noticing who 
 | Invoicing v2: send (`…/{id}/send`) | Sending the invoice with PayPal's pay link |
 | Invoicing v2: remind (`…/{id}/remind`) | Sending the reminder you approved |
 | Invoicing v2: record payment (`…/{id}/payments`) | Recording a confirmed match (full or partial) |
-| Transaction Search (`GET /v1/reporting/transactions`) | Finding incoming payments to match against open invoices |
+| Transaction Search (`GET /v1/reporting/transactions`) | Finding incoming payments to match against open invoices (demo shows matching with sample data; see the note above) |
 
 Sandbox verification status: TODO (copy the ticked table from `docs/sandbox-check.md`).
 

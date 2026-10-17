@@ -304,7 +304,7 @@ function openSide(r) {
       <dl class="facts"><dt>From</dt><dd>${esc(m.payer)}</dd><dt>Amount</dt><dd>${money(m.amount, m.currency)} (${m.settles === 'full' ? 'settles it' : 'partial'})</dd>
       <dt>Date</dt><dd>${esc((m.date || '').slice(0, 10))}</dd><dt>Transaction</dt><dd><small>${esc(m.tx_id)}</small></dd></dl>
       <div class="lbl">Why Paid-Up thinks it is this invoice</div><ul class="checks">${m.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
-    html += confirmBox('do-record', `This ${money(m.amount, m.currency)} from ${esc(m.payer)} is for ${esc(r.number || r.id)}.`, 'Record payment at PayPal');
+    html += confirmBox('do-record', `This ${money(m.amount, m.currency)} from ${esc(m.payer)} is for ${esc(r.number || r.id)}.`, state.health?.paypal?.mode === 'mock' ? 'Record payment (sample data)' : 'Record payment at PayPal');
     $('#side-body').innerHTML = html;
     wireConfirm('do-record', async () => {
       const amount = Math.min(Number(m.amount), Number(r.due)).toFixed(2);
