@@ -55,7 +55,7 @@ Request `{ "method": "PAYPAL"|"BANK_TRANSFER"|..., "amount": "600.00" (default: 
 → `{ invoice: Row }`. 400 if amount is 0 or more than the balance due.
 
 ## Shapes
-**Row**: `{ id, number, status, recipient:{name,business,email}, currency, total, paid, due, invoice_date, due_date, first_sent, last_sent, days_overdue, payer_url, items:[{name,quantity,unit_amount}], note }`
+**Row**: `{ id, number, status, recipient:{name,business,email}, currency, total, paid, due, invoice_date, due_date, first_sent, last_sent, last_reminder (ISO, our own record), last_contact (latest of last_sent and last_reminder), days_overdue, payer_url, items:[{name,quantity,unit_amount}], note }`
 Status values are PayPal's: DRAFT, SENT, UNPAID, PARTIALLY_PAID, PAYMENT_PENDING, PAID, MARKED_AS_PAID, CANCELLED, ...
 
 **NextAction**: `{ action: "send"|"remind"|"record_payment"|"wait"|"none", tone?: "friendly"|"firm"|"final", priority: 0-5, why: "human-readable reason" }`
