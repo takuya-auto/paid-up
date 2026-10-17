@@ -3,7 +3,7 @@
 **An AI collections assistant for freelancers on PayPal Invoicing.**
 Paste a client's message and get a PayPal invoice draft. See who to chase next and why. Match the money that came in. Sending, reminding and recording are separate actions you trigger yourself.
 
-> DRAFT README (2026-10-17). Items marked **TODO** are filled in after the PayPal sandbox run (`docs/sandbox-check.md`). Nothing here is final until then.
+> DRAFT README (2026-10-17). Items marked **TODO** (demo URL, video, repository URL) are filled in before submission.
 
 - **Live demo:** TODO (Cloudflare Workers URL). It runs against the PayPal **sandbox**, so no real money moves.
 - **Demo video (under 3 min):** TODO (YouTube URL)
@@ -19,7 +19,7 @@ Sending an invoice is the easy part. The hard part comes after it: noticing who 
 2. **Who to chase next.** All invoices sit in one board, sorted by what needs doing today: *send*, *remind*, *record payment*, *wait* or *nothing*. Each row has a plain-English reason ("25 days overdue; last contact 40 days ago"). The decision is rule-based on purpose. When money is involved, the "what" should be predictable and explainable.
 3. **Reminders in the right tone.** For an overdue invoice Paid-Up suggests a tone (friendly nudge → firm follow-up → final notice) from days overdue and the last time you contacted the client, and the AI drafts the message. You edit it, tick the confirmation and PayPal sends it with the payment link. Paid-Up records when you sent a reminder (PayPal's invoice metadata does not change on a reminder) and won't suggest another one within 5 days.
 4. **Matching incoming money.** Payments don't always come through the invoice link. Paid-Up searches your PayPal transactions and proposes which open invoice each payment settles, showing the reasons (amount equals the balance or the total, same email or email domain as the client, payer name matches, the payment note mentions an invoiced item). You confirm, and it is recorded on the invoice. A payment that matches nothing is listed for you to review; recording happens only through the *Record payment* action.
-   *Demo note:* matching is shown with the built-in **sample data (mock mode)**. The Transaction Search call is wired up and authorised in the sandbox, but matching has not been demonstrated against real sandbox payments.
+   *Demo note:* payment matching is demonstrated with the built-in **sample data (mock mode)**. The Transaction Search call itself is verified against the sandbox (it returned no data because no real sandbox payment was made).
 5. **Everything is visible.** A log shows every PayPal call (method, path, status) and every AI step, including when the app fell back to rules.
 
 ### Human in the loop, by design
@@ -43,7 +43,18 @@ Sending an invoice is the easy part. The hard part comes after it: noticing who 
 | Invoicing v2: record payment (`…/{id}/payments`) | Recording a confirmed match (full or partial) |
 | Transaction Search (`GET /v1/reporting/transactions`) | Finding incoming payments to match against open invoices (demo shows matching with sample data; see the note above) |
 
-Sandbox verification status: TODO (copy the ticked table from `docs/sandbox-check.md`).
+Verified against the PayPal sandbox on 2026-10-17 (details in `docs/sandbox-check.md`):
+
+| Call | Result |
+|---|---|
+| OAuth 2.0 token | works; the token is reused across calls |
+| Create invoice | works; returns the full invoice. A due date in the past is accepted |
+| Get / list invoices | works. The list response has no line items, so per-invoice details are fetched separately |
+| Send | works; status becomes `SENT` and the client's view URL is present |
+| Remind | works, but PayPal's `last_sent_time` does not change, so Paid-Up keeps its own reminder record |
+| Record payment | works: a partial payment gives `PARTIALLY_PAID`, a full one gives `MARKED_AS_PAID` |
+| Transaction Search | the call returns 200 after enabling the permission; no real sandbox payment was made, so it returned no transactions |
+| Paying an invoice as the sandbox buyer | not done |
 
 ## AI used, and how
 
@@ -97,7 +108,7 @@ Without PayPal credentials the Worker uses a built-in mock with fictional invoic
 ## Try it as a judge
 
 - Open the live demo (TODO URL). It is connected to a PayPal sandbox business account.
-- To pay an invoice as a client, use the sandbox **buyer** test account: TODO (sandbox-only test credentials, added before submission as the rules allow).
+- Paying an invoice as the client is not part of this demo. Creating, sending, reminding and recording payments are.
 - Sample messages to paste are in the *Try a sample message* menu (all clients are fictional; emails use the reserved `example.com` / `example.org` domains).
 
 ## What's next
