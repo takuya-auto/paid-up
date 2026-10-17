@@ -25,13 +25,21 @@ function initialMode() {
   try { const m = localStorage.getItem('paidup-data'); if (m === 'sample' || m === 'live') return m; } catch { /* storage blocked */ }
   return 'live';
 }
-const state = { overview: null, health: null, filter: 'all', selected: null, tones: {}, mode: initialMode() };
+// One id per browser, so each visitor gets their own copy of the sample data (docs/api.md "Sample data mode").
+function sessionId() {
+  const ok = (v) => typeof v === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(v);
+  try { const v = localStorage.getItem('paidup-session'); if (ok(v)) return v; } catch { /* storage blocked */ }
+  const v = (crypto.randomUUID ? crypto.randomUUID() : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`);
+  try { localStorage.setItem('paidup-session', v); } catch { /* storage blocked: id lasts for this page only */ }
+  return v;
+}
+const state = { overview: null, health: null, filter: 'all', selected: null, tones: {}, mode: initialMode(), session: sessionId() };
 
 // ---------- API ----------
 async function api(path, { method = 'GET', body } = {}) {
   const qs = new URLSearchParams();
   if (method === 'GET') qs.set('today', today());
-  if (state.mode === 'sample') qs.set('data', 'sample');
+  if (state.mode === 'sample') { qs.set('data', 'sample'); qs.set('session', state.session); }
   const url = qs.toString() ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path;
   const res = await fetch(url, {
     method,
@@ -53,7 +61,7 @@ function log(html) {
 }
 function logCalls(calls, mode) {
   for (const c of calls) {
-    log(`<span class="m">PayPal${mode === 'mock' ? ' (mock)' : ''}</span> ${esc(c.method)} ${esc(c.path)} → <span class="s${String(c.status)[0]}">${esc(c.status)}</span>${c.ms != null ? ` · ${esc(c.ms)} ms` : ''}${c.debug_id ? ` · debug_id ${esc(c.debug_id)}` : ''}`);
+    log(`<span class="m">PayPal${mode === 'sample' ? ' (sample data — not sent)' : mode === 'mock' ? ' (mock)' : ''}</span> ${esc(c.method)} ${esc(c.path)} → <span class="s${String(c.status)[0]}">${esc(c.status)}</span>${c.ms != null ? ` · ${esc(c.ms)} ms` : ''}${c.debug_id ? ` · debug_id ${esc(c.debug_id)}` : ''}`);
   }
 }
 
@@ -318,7 +326,7 @@ function openSide(r) {
       <dl class="facts"><dt>From</dt><dd>${esc(m.payer)}</dd><dt>Amount</dt><dd>${money(m.amount, m.currency)} (${m.settles === 'full' ? 'settles it' : 'partial'})</dd>
       <dt>Date</dt><dd>${esc((m.date || '').slice(0, 10))}</dd><dt>Transaction</dt><dd><small>${esc(m.tx_id)}</small></dd></dl>
       <div class="lbl">Why Paid-Up thinks it is this invoice</div><ul class="checks">${m.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
-    html += confirmBox('do-record', `This ${money(m.amount, m.currency)} from ${esc(m.payer)} is for ${esc(r.number || r.id)}.`, state.health?.paypal?.mode === 'mock' ? 'Record payment (sample data)' : 'Record payment at PayPal');
+    html += confirmBox('do-record', `This ${money(m.amount, m.currency)} from ${esc(m.payer)} is for ${esc(r.number || r.id)}.`, state.health?.paypal?.mode !== 'live' || state.health?.paypal?.sample ? 'Record payment (sample data)' : 'Record payment at PayPal');
     $('#side-body').innerHTML = html;
     wireConfirm('do-record', async () => {
       const amount = Math.min(Number(m.amount), Number(r.due)).toFixed(2);
@@ -446,6 +454,16 @@ async function setMode(mode) {
   await loadOverview();
 }
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('#reset-sample').addEventListener('click', async () => {
+  const b = $('#reset-sample'); b.disabled = true;
+  try {
+    await api('/api/sample/reset', { method: 'POST', body: {} });
+    log('Sample data reset to the starting set (only for you).');
+    closeSide();
+    await loadOverview();
+  } catch (e) { log(`<span class="s4">Could not reset the sample:</span> ${esc(e.message)}`); }
+  finally { b.disabled = false; }
+});
 
 // ---------- start ----------
 applyMode();
