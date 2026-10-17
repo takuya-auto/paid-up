@@ -1,0 +1,65 @@
+{
+  "_note": "Fictional sample messages for the demo. All people and businesses are invented; email addresses use the reserved example.com / example.org domains (RFC 2606).",
+  "requests": [
+    {
+      "id": "req-01",
+      "label": "Logo + business cards (email)",
+      "channel": "email",
+      "text": "Hi Sam,\n\nThanks again for the logo work, we love it. Could you send the invoice for the logo package ($850) and the business card layout ($150)? Please make it out to Brightside Bakery, attention Maya Ortiz, maya@brightside-bakery.example.com. Net 15 is fine.\n\nCheers,\nMaya"
+    },
+    {
+      "id": "req-02",
+      "label": "Monthly retainer (chat)",
+      "channel": "chat",
+      "text": "hey! can you bill us for october? same as usual — 20 hrs of site maintenance at $45/hr. send it to accounts@northwind-yoga.example.org, due end of the month pls"
+    },
+    {
+      "id": "req-03",
+      "label": "Photo shoot with deposit already paid (email)",
+      "channel": "email",
+      "text": "Hello,\n\nFor the product shoot on Oct 12: half-day session $600, plus 25 edited photos at $12 each. We already paid the $200 deposit by bank transfer, so please take that off. Invoice to Daniel Kim, Kim & Lee Ceramics, daniel@kimlee-ceramics.example.com. We need it paid by Nov 20.\n\nThanks,\nDaniel"
+    },
+    {
+      "id": "req-04",
+      "label": "Translation, word count (email)",
+      "channel": "email",
+      "text": "Hi, the Japanese-to-English translation of our 3,200-word user guide is approved. Your rate was $0.09 per word. Please bill Harbor Lane Software, contact Priya Shah (priya.shah@harborlane.example.org). Our policy is net 30."
+    },
+    {
+      "id": "req-05",
+      "label": "Two workshops (chat)",
+      "channel": "chat",
+      "text": "Can you invoice the two workshops? Intro to spreadsheets on Nov 3 and Nov 10, $300 each. Bill to Greenfield Community Center, Tom Becker, tom@greenfield-cc.example.org"
+    },
+    {
+      "id": "req-06",
+      "label": "Ambiguous: amount missing (email)",
+      "channel": "email",
+      "text": "Hi there,\n\nPlease send us the invoice for the website copy you wrote last week. Make it out to Pine & Petal Florist (orders@pineandpetal.example.com).\n\nBest,\nLena"
+    },
+    {
+      "id": "req-07",
+      "label": "Rush fee + discount (email)",
+      "channel": "email",
+      "text": "Hello! The pitch deck redesign (12 slides at $40/slide) came out great. As agreed there's a $100 rush fee, and you offered 10% off the slides since we're a returning client. Invoice to Oak Street Ventures, Chris Wu, chris.wu@oakstreet.example.com. Due Nov 15."
+    },
+    {
+      "id": "req-08",
+      "label": "Euro client (email)",
+      "channel": "email",
+      "text": "Hi, please invoice in EUR: illustration set for the children's book, 8 illustrations at EUR 180 each. Client: Atelier Mirelle, Sophie Laurent, sophie@atelier-mirelle.example.org. Payment within 21 days."
+    },
+    {
+      "id": "req-09",
+      "label": "Tutoring sessions (chat)",
+      "channel": "chat",
+      "text": "hi! for my son's math tutoring this month: 6 sessions x $35. you can send the bill to me, Ana Ruiz, ana.ruiz@example.com. thanks so much!!"
+    },
+    {
+      "id": "req-10",
+      "label": "Hosting pass-through + setup (email)",
+      "channel": "email",
+      "text": "Hi Sam,\n\nPlease bill Cedar Dental Studio for: one-time setup of the booking page ($250) and a year of hosting you prepaid for us ($96, no markup). Send to frontdesk@cedardental.example.com, attention Dr. Hana Sato. Due in 14 days.\n\nThank you"
+    }
+  ]
+}

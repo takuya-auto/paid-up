@@ -1,0 +1,14 @@
+{
+  "name": "paid-up",
+  "version": "0.1.0",
+  "description": "Paid-Up - an AI collections assistant for freelancers on PayPal Invoicing (PayPal AI Hackathon 2026)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "license": "MIT",
+  "devDependencies": {}
+}

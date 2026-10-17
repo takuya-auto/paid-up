@@ -1,0 +1,25 @@
+{
+  // Paid-Up - single Worker: static UI from ./public + /api/* handled in src/worker.js
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "paid-up",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // Workers AI (free allocation). The model must support JSON output reliably.
+  "ai": { "binding": "AI", "remote": true },
+  "vars": {
+    // Only the sandbox is supported. PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are secrets
+    // (wrangler secret put / .dev.vars). Without them the built-in mock is used.
+    "PAYPAL_ENV": "sandbox",
+    "LLM_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    // Hard cap on LLM invocations per UTC day. Above this the app uses its rule-based reader and templates.
+    "LLM_DAILY_CAP": "60",
+    "LLM_PER_REQUEST_CAP": "2",
+    "LLM_MODE": "auto"
+  },
+  "observability": { "enabled": true }
+}
