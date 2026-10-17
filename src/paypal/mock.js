@@ -76,8 +76,7 @@ export function createMockPayPal() {
       return { rel: 'self', href: `https://api-m.sandbox.paypal.com/v2/invoicing/invoices/${id}`, method: 'GET' };
     },
     async remind(id) {
-      const inv = get(id);
-      inv.detail.metadata = { ...inv.detail.metadata, last_sent_time: nowIso() };
+      get(id); // like the sandbox (2026-10-17): remind does not change metadata.last_sent_time
       log('POST', `/v2/invoicing/invoices/${id}/remind`, 204);
       return null;
     },

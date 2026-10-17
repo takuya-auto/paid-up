@@ -205,3 +205,16 @@ test('zero-decimal currencies are sent without decimals (sandbox accounts are in
   assert.throws(() => toPayPalInvoice({ currency: 'JPY', items: [{ name: 'Logo', unit_amount: 99.5 }] }), /decimals/);
   assert.equal(toPayPalInvoice({ items: [{ name: 'Logo', unit_amount: 99.5 }] }).items[0].unit_amount.value, '99.50');
 });
+
+test('quiet period uses our own reminder record (PayPal does not update last_sent on remind)', async () => {
+  const { _resetHistory } = await import('../src/agent/history.js');
+  resetMock(); _resetHistory();
+  const today = new Date().toISOString().slice(0, 10);
+  const ov = await call('GET', `/api/overview?today=${today}`);
+  const chen = ov.body.rows.find((r) => r.recipient.business === 'Chen Bakery');
+  assert.equal(chen.next.action, 'remind');
+  const sent = await call('POST', `/api/invoices/${chen.id}/remind`, { subject: 's', note: 'n', today });
+  assert.ok(sent.body.invoice.last_reminder);
+  const ov2 = await call('GET', `/api/overview?today=${today}`);
+  assert.equal(ov2.body.rows.find((r) => r.id === chen.id).next.action, 'wait');
+});

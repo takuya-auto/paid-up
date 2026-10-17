@@ -8,6 +8,7 @@ import { createLLM } from './llm/workersai.js';
 import { extractDraft } from './agent/extract.js';
 import { nextAction, draftReminder, TONES } from './agent/collect.js';
 import { incoming, reconcile } from './agent/reconcile.js';
+import { createHistory, lastContact } from './agent/history.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(data), { status, headers: { ...JSON_HEADERS, ...extra } });
@@ -40,9 +41,15 @@ function dateParam(v) {
   return d;
 }
 
-async function overview(pp, today) {
+async function withContact(row, history) {
+  row.last_reminder = await history.lastReminder(row.id);
+  row.last_contact = lastContact(row, row.last_reminder);
+  return row;
+}
+
+async function overview(pp, today, history) {
   const list = await pp.listInvoices({ pageSize: 100 });
-  const rows = (list.items || []).map((inv) => summarize(inv, today));
+  const rows = await Promise.all((list.items || []).map((inv) => withContact(summarize(inv, today), history)));
   const end = new Date(`${today}T23:59:59Z`);
   const start = new Date(end.getTime() - 30 * 86400000); // Transaction Search allows up to 31 days per call
   let txs = [];
@@ -106,7 +113,7 @@ async function handleApi(request, env, url) {
   // 3. The overview: every invoice with its next action, plus payment matches.
   if (path === '/api/overview' && request.method === 'GET') {
     const client = pp();
-    return json(withCalls(client, await overview(client, dateParam(url.searchParams.get('today')))));
+    return json(withCalls(client, await overview(client, dateParam(url.searchParams.get('today')), createHistory(env))));
   }
 
   if (m) {
@@ -123,7 +130,7 @@ async function handleApi(request, env, url) {
     if (verb === 'reminder-draft' && request.method === 'POST') {
       const b = await body(request);
       const today = dateParam(b.today);
-      const row = summarize(await client.getInvoice(id), today);
+      const row = await withContact(summarize(await client.getInvoice(id), today), createHistory(env));
       const llm = createLLM(env);
       return json(withCalls(client, { invoice_id: id, reminder: await draftReminder(row, { tone: b.tone, llm, today }), next: nextAction(row, today) }));
     }
@@ -131,7 +138,9 @@ async function handleApi(request, env, url) {
       const b = await body(request);
       if (!b.subject || !b.note) throw bad('subject and note are required (draft one with /reminder-draft first)');
       await client.remind(id, { subject: String(b.subject).slice(0, 4000), note: String(b.note).slice(0, 4000), send_to_invoicer: true, send_to_recipient: true });
-      return json(withCalls(client, { invoice: summarize(await client.getInvoice(id), dateParam(b.today)) }));
+      const history = createHistory(env);
+      await history.recordReminder(id, new Date().toISOString());
+      return json(withCalls(client, { invoice: await withContact(summarize(await client.getInvoice(id), dateParam(b.today)), history) }));
     }
     if (verb === 'payments' && request.method === 'POST') {
       const b = await body(request);

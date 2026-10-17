@@ -35,7 +35,7 @@ export function nextAction(row, today, match = null) {
   }
   if (!OPEN_STATUSES.has(row.status)) return { action: 'none', priority: 0, why: `Status ${row.status}.` };
 
-  const lastContact = (row.last_sent || row.first_sent || '').slice(0, 10);
+  const lastContact = (row.last_contact || row.last_sent || row.first_sent || '').slice(0, 10);
   const quietFor = lastContact ? daysBetween(lastContact, today) : 99;
   const partial = row.status === 'PARTIALLY_PAID' ? ` (${row.currency} ${row.paid} already paid, ${row.due} left)` : '';
 

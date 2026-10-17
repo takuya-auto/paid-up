@@ -49,7 +49,7 @@ try {
     if (!/@/.test(buyer || '')) throw new Error('usage: create <sandbox buyer email>');
     const out = [];
     for (const [name, amount, due] of [['Sandbox check A (to be paid by the buyer)', 42, plus(14)], ['Sandbox check B (external payment)', 100, plus(-3)]]) {
-      const raw = await pp.createDraft(toPayPalInvoice({ recipient: { name: 'Sandbox Buyer', email: buyer }, items: [{ name, quantity: 1, unit_amount: amount }], currency: 'USD', due_date: due, note: 'Paid-Up sandbox check' }));
+      const raw = await pp.createDraft(toPayPalInvoice({ recipient: { name: 'Sandbox Buyer', email: buyer }, items: [{ name, quantity: 1, unit_amount: amount }], currency: 'USD', due_date: due, note: 'Paid-Up sandbox check' }, { invoicerEmail: env.PAYPAL_INVOICER_EMAIL || undefined }));
       out.push({ created_keys: Object.keys(raw || {}), has_id: !!raw?.id, links: raw?.links?.map((l) => l.rel) });
       const id = raw.id || raw.href?.split('/').pop();
       const sent = await pp.send(id, { send_to_recipient: true, send_to_invoicer: true });

@@ -5,15 +5,15 @@ has been run against the sandbox with real credentials (team rule: verify real A
 
 | Call | Verified | Date | Notes (debug ids go in the private log, not here) |
 |---|---|---|---|
-| POST /v1/oauth2/token (client credentials) | no | | expires_in, token reuse |
-| POST /v2/invoicing/invoices (Prefer: return=representation) | no | | does 201 return the full invoice or only a link? |
-| GET /v2/invoicing/invoices/{id} | no | | metadata.recipient_view_url present after send? |
+| POST /v1/oauth2/token (client credentials) | yes | 2026-10-17 | token reused across calls in one run |
+| POST /v2/invoicing/invoices (Prefer: return=representation) | yes | 2026-10-17 | returns the full invoice (id, status, detail, amount, links...). USD works on the JP sandbox account. A due date in the past is accepted |
+| GET /v2/invoicing/invoices/{id} | yes | 2026-10-17 | recipient_view_url present after send; invoice numbers 0001, 0002 auto-assigned |
 | GET /v2/invoicing/invoices?page_size=100&total_required=true | no | | |
-| POST /v2/invoicing/invoices/{id}/send | no | | 200 vs 202; status becomes SENT/UNPAID? |
+| POST /v2/invoicing/invoices/{id}/send | yes | 2026-10-17 | returns a link (href, rel, method); status becomes SENT |
 | Pay the invoice as the sandbox buyer | no | | status PAID; payments.transactions[].payment_id = transaction id? |
-| POST /v2/invoicing/invoices/{id}/remind | no | | 204; last_sent_time updated? |
-| POST /v2/invoicing/invoices/{id}/payments | no | | external payment -> MARKED_AS_PAID / PARTIALLY_PAID |
-| GET /v1/reporting/transactions | no | | how long until a sandbox payment appears; invoice_id / paypal_invoice_id on invoice payments; direct transfer from buyer shows payer_info |
+| POST /v2/invoicing/invoices/{id}/remind | yes | 2026-10-17 | succeeds, but metadata.last_sent_time is NOT updated -> the app keeps its own reminder record (src/agent/history.js) |
+| POST /v2/invoicing/invoices/{id}/payments | yes | 2026-10-17 | 40 of 100 -> PARTIALLY_PAID, paid 40.00, due 60.00; PayPal assigns a payment id starting EXTR- |
+| GET /v1/reporting/transactions | **blocked** | 2026-10-17 | 403 NOT_AUTHORIZED: the sandbox app needs the Transaction Search feature enabled (app settings). Re-run after that |
 
 Decision rule (plan, 2026-10-22): if create -> send -> pay -> status change does not work in the sandbox, switch to the Orders v2 plan.
 
