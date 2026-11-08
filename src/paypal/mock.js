@@ -4,7 +4,7 @@
 // actions do not change what the next visitor sees. Copies live in the isolate's memory, are
 // dropped after SESSION_IDLE_MS without use, and at most MAX_SESSIONS are kept.
 
-import { SEED_INVOICES, SEED_TRANSACTIONS } from '../../fixtures/seed.js';
+import { seedInvoices, seedTransactions } from '../../fixtures/seed.js';
 
 const stores = new Map(); // session -> { store, touched }
 const MAX_SESSIONS = 300;
@@ -13,8 +13,8 @@ const SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
 function fresh() {
   return {
     seq: 1000,
-    invoices: new Map(SEED_INVOICES.map((inv) => [inv.id, structuredClone(inv)])),
-    transactions: structuredClone(SEED_TRANSACTIONS),
+    invoices: new Map(seedInvoices().map((inv) => [inv.id, inv])),
+    transactions: seedTransactions(),
   };
 }
 

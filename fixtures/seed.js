@@ -1,5 +1,7 @@
 // Fictional seed data for the mock (all names and emails are made up; example.com is reserved).
 // Dates are relative to "now" so the demo always has something overdue, due soon and paid.
+// Built inside a request (not at module load): on Cloudflare Workers, Date.now() at global scope is 0,
+// which made every sample date 1969/1970 on the deployed demo.
 
 const day = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
 const iso = (offset) => new Date(Date.now() + offset * 86400000).toISOString();
@@ -32,7 +34,7 @@ function inv(id, number, status, { name, business, email }, items, { issued, due
 
 const item = (name, quantity, value) => ({ name, quantity: String(quantity), unit_amount: usd(value) });
 
-export const SEED_INVOICES = [
+export const seedInvoices = () => [
   inv('INV2-SEED-0001', '0001', 'SENT', { name: 'Maya Chen', business: 'Chen Bakery', email: 'maya@chen-bakery.example.com' },
     [item('Menu board redesign', 1, '450.00'), item('Print-ready files', 1, '80.00')],
     { issued: -40, due: -25, sent: -40 }),
@@ -52,7 +54,7 @@ export const SEED_INVOICES = [
 
 // Money that arrived outside the invoice link (e.g. a direct PayPal transfer). The agent's job
 // is to notice which open invoice it most likely settles.
-export const SEED_TRANSACTIONS = [
+export const seedTransactions = () => [
   {
     transaction_info: {
       transaction_id: 'SEEDTXN-A1', transaction_event_code: 'T0000', transaction_status: 'S',
