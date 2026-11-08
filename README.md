@@ -3,9 +3,7 @@
 **An AI collections assistant for freelancers on PayPal Invoicing.**
 Paste a client's message and get a PayPal invoice draft. See who to chase next and why. Match the money that came in. Sending, reminding and recording are separate actions you trigger yourself.
 
-> DRAFT README (2026-10-17). Items marked **TODO** (demo URL, video, repository URL) are filled in before submission.
-
-- **Live demo:** TODO (Cloudflare Workers URL). It runs against the PayPal **sandbox**, so no real money moves.
+- **Live demo:** https://paid-up.zaresusan1.workers.dev It runs against the PayPal **sandbox**, so no real money moves.
 - **Demo video (under 3 min):** TODO (YouTube URL)
 - **License:** MIT
 
@@ -96,8 +94,8 @@ The board is built on **AG Grid Community** (MIT):
 Requirements: Node.js (current LTS), a Cloudflare account (free plan) for Workers AI, a PayPal developer **sandbox** app.
 
 ```bash
-git clone TODO
-cd TODO   # folder name decided when the public repo is created
+git clone https://github.com/takuya-auto/paid-up.git
+cd paid-up
 cp .dev.vars.example .dev.vars   # add PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET (sandbox)
 npx wrangler dev                 # http://localhost:8787
 npm test                         # unit tests (node --test)
@@ -107,7 +105,7 @@ Without PayPal credentials the Worker uses a built-in mock with fictional invoic
 
 ## Try it as a judge
 
-- Open the live demo (TODO URL). It is connected to a PayPal sandbox business account.
+- Open the live demo (https://paid-up.zaresusan1.workers.dev). It is connected to a PayPal sandbox business account.
 - Paying an invoice as the client is not part of this demo. Creating, sending, reminding and recording payments are.
 - Sample messages to paste are in the *Try a sample message* menu (all clients are fictional; emails use the reserved `example.com` / `example.org` domains).
 
