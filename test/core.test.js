@@ -236,14 +236,14 @@ test('public demo guard: sample mode, recipient allow-list and daily write cap',
     const draft = (email) => ({ draft: { recipient: { email }, items: [{ name: 'Work', unit_amount: 10 }] }, today: TODAY });
     assert.equal((await req('/api/health')).body.paypal.mode, 'live');
     assert.equal((await req('/api/health?data=sample')).body.paypal.mode, 'sample');
-    assert.equal((await req('/api/invoices', draft('someone@gmail.com'))).status, 403);
+    assert.equal((await req('/api/invoices', draft('someone@not-allowed.example.com'))).status, 403);
     assert.equal((await req('/api/invoices', draft(''))).status, 403);
     assert.equal(created.length, 0);
     assert.equal((await req('/api/invoices', draft('buyer@personal.example.com'))).status, 201);
     assert.equal((await req('/api/invoices', draft('buyer@personal.example.com'))).status, 201);
     assert.equal((await req('/api/invoices', draft('buyer@personal.example.com'))).status, 429); // cap of 2
     assert.equal(created.length, 2);
-    assert.equal((await req('/api/invoices?data=sample', draft('anyone@gmail.com'))).status, 201); // sample data never reaches PayPal
+    assert.equal((await req('/api/invoices?data=sample', draft('anyone@not-allowed.example.com'))).status, 201); // sample data never reaches PayPal
     assert.equal(created.length, 2);
     const closed = await worker.fetch(new Request('http://x/api/invoices', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(draft('buyer@personal.example.com')) }), { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 's' });
     assert.equal(closed.status, 403); // no allow-list configured -> refuse
