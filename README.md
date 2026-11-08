@@ -29,6 +29,13 @@ Sending an invoice is the easy part. The hard part comes after it: noticing who 
 | Remind | Picks a tone and drafts the wording | Edit, tick, then *Send reminder* |
 | Record a payment | Proposes a match with reasons | Tick, then *Record payment at PayPal* |
 
+## Screenshots
+
+| | |
+|---|---|
+| ![The board: every invoice with its next step and the reason](docs/screenshots/1-board.jpg) | ![A client's message read into an invoice draft](docs/screenshots/2-message.jpg) |
+| ![A reminder drafted in the suggested tone, edited before sending](docs/screenshots/3-reminder.jpg) | ![An incoming payment matched to an open invoice, with the reasons (sample data)](docs/screenshots/4-matching.jpg) |
+
 ## PayPal technology used
 
 | PayPal API | Used for |
