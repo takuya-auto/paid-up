@@ -11,13 +11,15 @@
   },
   // Workers AI (free allocation). The model must support JSON output reliably.
   "ai": { "binding": "AI", "remote": true },
+  // Daily caps (LLM / PayPal writes) are counted here so they survive redeploys and isolates.
+  "kv_namespaces": [{ "binding": "CAP_KV", "id": "1d342ad1581b4b75b8eab5ad1d1ea444" }],
   "vars": {
     // Only the sandbox is supported. PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are secrets
     // (wrangler secret put / .dev.vars). Without them the built-in mock is used.
     "PAYPAL_ENV": "sandbox",
     // Public demo safety (src/guard.js): invoices may only be created for these addresses
     // (comma-separated, "@domain" allowed). Empty = creating invoices at PayPal is refused.
-    "SEND_ALLOWED_EMAILS": "",
+    "SEND_ALLOWED_EMAILS": "sb-gh3jq53320191@personal.example.com",
     // Max PayPal write actions (create/send/remind/record) per UTC day.
     "WRITE_DAILY_CAP": "50",
     "LLM_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
