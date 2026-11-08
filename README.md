@@ -4,7 +4,7 @@
 Paste a client's message and get a PayPal invoice draft. See who to chase next and why. Match the money that came in. Sending, reminding and recording are separate actions you trigger yourself.
 
 - **Live demo:** https://paid-up.zaresusan1.workers.dev It runs against the PayPal **sandbox**, so no real money moves.
-- **Demo video (under 3 min):** TODO (YouTube URL)
+- **Demo video (under 3 min):** https://youtu.be/QKPHcgmETDw
 - **License:** MIT
 
 ## The problem
